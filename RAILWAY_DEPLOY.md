@@ -43,6 +43,7 @@ This guide will help you deploy the **Universal Support Brain** to Railway from 
     *   `GORGIAS_API_KEY`: *(Your Gorgias Key)*
     *   `GORGIAS_USERNAME`: *(Your Email)*
     *   `GORGIAS_BASE_URL`: *(Your Gorgias Base URL)*
+    *   `APIFY_API_KEY`: *(Your Apify API Token)*
 4.  **Set Start Command**:
     *   Go to **Settings** -> **Deploy** -> **Start Command**.
     *   Paste this exact command:
