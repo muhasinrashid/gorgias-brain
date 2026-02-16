@@ -77,6 +77,25 @@ This guide will help you deploy the **Universal Support Brain** to Railway from 
 
 ---
 
+## 🧠 Step 4: Populate Knowledge Base
+
+Once your backend is live, you need to ingest the Formex FAQ content so the AI has answers.
+
+1.  **Locally**, run the ingestion script pointing to your production URL:
+    ```bash
+    # Replace with your actual Backend URL and Admin Key
+    export BASE_URL="https://backend-production.up.railway.app"
+    export ADMIN_API_KEY="my-secret-admin-key-123"
+    
+    python3 ingest_formex_full.py
+    ```
+
+2.  **Verify Ingestion**:
+    *   Check your Pinecone dashboard to see the vectors.
+    *   Or use the `verify_ingested.py` script (update it to point to prod if needed).
+
+---
+
 ## 🔒 Security Post-Deployment
 
 Once both are working:
