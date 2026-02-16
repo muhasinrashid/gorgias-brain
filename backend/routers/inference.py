@@ -135,54 +135,79 @@ async def gorgias_widget(
                 "text": "⚠️ No ticket data received. Make sure the URL includes: &subject={{ticket.subject}}"
             }
 
-        # 1. Perform Vector Search first (Fast)
-        import asyncio
-        namespace = f"org_{org_id}"
-        search_results = await asyncio.to_thread(
-            engine.vector_service.similarity_search_with_score,
-            query=ticket_body,
-            k=5,
-            namespace=namespace
-        )
-        
-        if not search_results:
-             return {
-                "type": "text",
-                "text": "🔍 No similar past tickets found."
-            }
+    # --- TOTAL TIME BUDGET: 4.5 Seconds (Gorgias kills at 5.0s) ---
+        start_time = time.time()
+        TOTAL_BUDGET = 4.5
+        search_results = [] # Initialize search_results for wider scope
 
-        # 2. Try to generate AI Answer using the ALREADY fetched results
         try:
-            result = await asyncio.wait_for(
-                engine.generate_response(
-                    current_ticket_body=ticket_body,
-                    customer_email=email,
-                    org_id=org_id,
-                    bigcommerce_adapter=adapter,
-                    search_results=search_results # Pass existing results!
-                ),
-                timeout=3.5  # Time for LLM only (search is already done)
+            # 1. Retrieve context (Gorgias Ticket + Similar Embeddings) - [Expected: 1.0 - 2.0s]
+            # Fetch ticket details first (already done above, but keeping structure from instruction)
+            # The existing logic for fetching ticket_body and email covers this.
+            # We'll use the `engine.vector_service` for search as per original code.
+
+            # Perform Search
+            namespace = f"org_{org_id}"
+            search_results = await asyncio.to_thread(
+                engine.vector_service.similarity_search_with_score,
+                query=ticket_body,
+                k=5,
+                namespace=namespace
             )
-            
-            draft = result.get("suggested_draft", "No suggestion available.")
-            confidence = result.get("confidence_score", 0)
-            sources = result.get("source_references", [])
-            
-            confidence_emoji = "🟢" if confidence >= 0.6 else "🟡" if confidence >= 0.35 else "🔴"
-            
-            # Simplified Source Format for Widget
-            sources_text = ""
-            if sources:
-                 # Extract ticket IDs if possible
-                 sources_text = "\n\n**Refs:** " + ", ".join(s.replace("Ticket #", "#") for s in sources[:3])
-            
-            return {
-                "type": "text",
-                "text": f"**{confidence_emoji} Smart Assist** ({confidence:.0%})\n\n{draft}{sources_text}"
-            }
+
+            # 2. Calculate remaining time for AI
+            elapsed = time.time() - start_time
+            remaining_time = TOTAL_BUDGET - elapsed
+
+            if remaining_time <= 0.5:
+                 # If we have less than 0.5s left, don't even try AI. Return search results.
+                 print(f"⚠️ Low time budget ({remaining_time:.2f}s). Skipping LLM.")
+                 raise asyncio.TimeoutError()
+
+            # 3. Try to generate AI Answer with remaining logic
+            try:
+                result = await asyncio.wait_for(
+                    engine.generate_response(
+                        current_ticket_body=ticket_body, # Use the ticket_body derived earlier
+                        customer_email=email, # Use the email derived earlier
+                        org_id=org_id,
+                        bigcommerce_adapter=adapter, # Use the adapter derived earlier
+                        search_results=search_results
+                    ),
+                    timeout=remaining_time  # Use exact remaining time!
+                )
+                
+                # ... process result ... (keep existing logic)
+                suggested_draft = result["suggested_draft"]
+                confidence = result.get("confidence_score", 0.0)
+                sources = result.get("source_references", []) # Changed from 'sources' to 'source_references' to match existing code
+                
+                # Format sources for display
+                # Simplified Source Format for Widget (from original code)
+                sources_text = ""
+                if sources:
+                     # Extract ticket IDs if possible
+                     sources_text = "\n\n**Refs:** " + ", ".join(s.replace("Ticket #", "#") for s in sources[:3])
+                
+                confidence_emoji = "🟢" if confidence >= 0.6 else "🟡" if confidence >= 0.35 else "🔴"
+                
+                # Re-using the original text-based response format for consistency with the widget
+                return {
+                    "type": "text",
+                    "text": f"**{confidence_emoji} Smart Assist** ({confidence:.0%})\n\n{suggested_draft}{sources_text}"
+                }
+
+            except asyncio.TimeoutError:
+                raise asyncio.TimeoutError() # Reraise to hit the fallback block below
 
         except asyncio.TimeoutError:
-            # 3. Fallback: Use the SAME search_results we already have (Instant)
+            # 4. Fallback: Return raw search results (Instant)
+            print("⏱️ LLM Timed out or skipped. Returning fallback search results.")
+            
+            # If search failed or was empty, handle gracefully
+            if not search_results:
+                 return {"type": "text", "text": "🔍 No relevant help articles found."}
+
             matches = []
             valid_count = 0
             
