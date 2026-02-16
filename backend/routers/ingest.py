@@ -66,25 +66,18 @@ def ingest_historical_tickets(
     texts_to_embed = []
     metadatas = []
     
-    # 3. Process Logic — fetch FULL ticket content including messages
+    # 3. Process Logic — Extract High-Quality Question-Resolution Pairs
     for ticket in tickets:
         ticket_id = ticket.get("id")
         subject = ticket.get("subject", "")
         
-        # Build rich text from ticket: subject + excerpt + full messages
-        raw_text = f"Subject: {subject}\n"
-        
-        # Add excerpt/description if available
-        if ticket.get("excerpt"):
-            raw_text += f"\nExcerpt: {ticket['excerpt']}\n"
-        elif ticket.get("description"):
-            raw_text += f"\nDescription: {ticket['description']}\n"
+        question_text = ""
+        resolution_text = ""
         
         # Fetch full ticket with messages from Gorgias API
         if hasattr(adapter, 'fetch_ticket'):
             full_ticket = adapter.fetch_ticket(str(ticket_id))
             if full_ticket:
-                # Get messages — contains the actual agent replies with policy info
                 raw_messages = full_ticket.get("messages", [])
                 if isinstance(raw_messages, dict):
                     messages = raw_messages.get("data", [])
@@ -93,19 +86,49 @@ def ingest_historical_tickets(
                 else:
                     messages = []
                 
-                for msg in messages:
-                    sender = msg.get("sender", {})
-                    sender_type = sender.get("type", "unknown") if isinstance(sender, dict) else "unknown"
-                    body = msg.get("body_text", "") or msg.get("stripped_text", "")
+                # Sort messages by creation date if available, or assume chronological
+                # We need:
+                # 1. The FIRST customer message (The Question)
+                # 2. The LAST internal/agent message (The Resolution)
+                
+                customer_messages = [m for m in messages if (m.get("sender", {}).get("type") == "customer" or m.get("from_agent") is False)]
+                agent_messages = [m for m in messages if (m.get("sender", {}).get("type") == "internal" or m.get("from_agent") is True)]
+                
+                if customer_messages:
+                    # Get first message body
+                    m = customer_messages[0]
+                    question_text = m.get("body_text", "") or m.get("stripped_text", "") or ""
+                
+                if agent_messages:
+                    # Get last message body (often the one that solved it)
+                    # Filter out short "Thank you" or "Closing ticket" messages if possible
+                    for m in reversed(agent_messages):
+                        body = m.get("body_text", "") or m.get("stripped_text", "") or ""
+                        if len(body.strip()) > 30: # Heuristic: resolutions are usually > 30 chars
+                            resolution_text = body.strip()
+                            break
                     
-                    if body and body.strip():
-                        role = "Agent" if sender_type == "internal" else "Customer"
-                        raw_text += f"\n{role}: {body.strip()}\n"
+                    if not resolution_text and agent_messages:
+                         resolution_text = agent_messages[-1].get("body_text", "") or agent_messages[-1].get("stripped_text", "") or ""
+
+        # Build the structured Knowledge Chunk
+        # If we couldn't pair, fall back to excerpt/subject
+        if not question_text:
+             question_text = ticket.get("excerpt") or ticket.get("subject") or "No content"
+             
+        final_doc_text = f"### QUESTION: {subject}\n{question_text.strip()}\n\n"
+        
+        if resolution_text:
+            final_doc_text += f"### RESOLUTION:\n{resolution_text.strip()}"
+        else:
+            # If no resolution found, maybe it was a simple outbound or closed without reply
+            # Use whole logic as fallback
+            final_doc_text += f"### CONTEXT: (Ticket Closed)"
 
         # Scrub PII
-        scrubbed_text = pii_scrubber.scrub(raw_text)
+        scrubbed_text = pii_scrubber.scrub(final_doc_text)
         
-        if not scrubbed_text.strip() or scrubbed_text.strip() == f"Subject: {subject}":
+        if not scrubbed_text.strip():
             continue
 
         # Prepare for Vector Store
@@ -120,6 +143,7 @@ def ingest_historical_tickets(
             "source_id": str(ticket_id),
             "source_type": "gorgias_ticket",
             "source_url": source_url,
+            "subject": subject
         })
 
     # 4. Embed and Store
