@@ -1,0 +1,16 @@
+fastapi
+langchain
+pinecone
+sqlalchemy
+pydantic
+openai
+httpx
+python-dotenv
+uvicorn
+cryptography
+psycopg2-binary
+langchain-openai
+langchain-community
+beautifulsoup4
+pytest
+alembic

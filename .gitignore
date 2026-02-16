@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.env
+.env.local
+node_modules/
+.next/
+dist/
+build/
+.DS_Store
+*.log
+.vscode/
+.idea/
+venv/
+env/
+backend/venv/
+backend/.env
+frontend/.env.local

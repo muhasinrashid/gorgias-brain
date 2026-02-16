@@ -1,0 +1,25 @@
+
+--- 1. Checking Credentials ---
+Base URL: https://formexwatch.gorgias.com
+Username: renil.mathews@neopraxis.in
+API Key: 5293a...[PRESENT]
+
+--- 2. Connecting to Gorgias ---
+Attempting health check against: https://formexwatch.gorgias.com/api/users?limit=1
+✅ Gorgias Connection Successful
+
+--- 3. Fetching Closed Tickets ---
+Fetching tickets with params: {'limit': 5}
+✅ Successfully fetched 5 tickets.
+
+Sample Ticket Data:
+ID: 431388279
+Subject: Love a green Essence 🔥
+Created At: 2026-02-14T15:54:21+00:00
+
+--- 4. optimizing Vector Embeddings ---
+✅ VectorService Initialized (Pinecone + Azure OpenAI)
+Attempting to embed sample ticket...
+Original Text Length: 45
+Scrubbed Text Length: 45
+✅ Sample ticket embedded and stored in Pinecone (namespace='test_verification_org_0')

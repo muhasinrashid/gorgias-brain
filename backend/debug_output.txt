@@ -1,0 +1,12 @@
+/home/muhasinrashid/gaugerCodeBase/Gorgias/backend/venv/lib64/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+Traceback (most recent call last):
+  File "/home/muhasinrashid/gaugerCodeBase/Gorgias/backend/verify_ingestion.py", line 11, in <module>
+    from backend.services.vector_store import VectorService
+  File "/home/muhasinrashid/gaugerCodeBase/Gorgias/backend/services/vector_store.py", line 7, in <module>
+    from pinecone import Pinecone, ServerlessSpec
+  File "/home/muhasinrashid/gaugerCodeBase/Gorgias/backend/venv/lib64/python3.14/site-packages/pinecone/__init__.py", line 5, in <module>
+    raise Exception(
+        "The official Pinecone python package has been renamed from `pinecone-client` to `pinecone`. Please remove `pinecone-client` from your project dependencies and add `pinecone` instead. See the README at https://github.com/pinecone-io/pinecone-python-client for more information on using the python SDK."
+    )
+Exception: The official Pinecone python package has been renamed from `pinecone-client` to `pinecone`. Please remove `pinecone-client` from your project dependencies and add `pinecone` instead. See the README at https://github.com/pinecone-io/pinecone-python-client for more information on using the python SDK.

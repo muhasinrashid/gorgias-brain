@@ -1,0 +1,18 @@
+/home/muhasinrashid/gaugerCodeBase/Gorgias/backend/venv/lib64/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+--- 1. Checking Credentials ---
+Base URL: https://formex.gorgias.com
+Username: renil.mathews@neopraxis.in
+API Key: [PRESENT]
+
+--- 2. Connecting to Gorgias ---
+❌ Gorgias Connection Failed
+Testing connection to: https://formex.gorgias.com/api/users/me
+Status Code: 404
+Response: <!doctype html>
+<html lang=en>
+<title>404 Not Found</title>
+<h1>Not Found</h1>
+<p>The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.</p>
+
