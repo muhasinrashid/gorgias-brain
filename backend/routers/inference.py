@@ -95,19 +95,18 @@ async def gorgias_widget(
     db: Session = Depends(get_db),
     engine: ReasoningEngine = Depends(get_reasoning_engine)
 ) -> Dict[str, Any]:
-    """
-    Gorgias HTTP Integration endpoint.
-    Accepts ticket data via URL query params (using Gorgias template variables):
-      ?ticket_id={{ticket.id}}&subject={{ticket.subject}}&customer_email={{ticket.customer.email}}
-    """
+    # --- TOTAL TIME BUDGET: 4.5 Seconds (Gorgias kills at 5.0s) ---
+    start_time = time.time()
+    TOTAL_BUDGET = 4.5
+    search_results = []
+    ticket_body = subject or ""
+    email = customer_email or ""
+    
     try:
         adapter = get_client_context(org_id, db)
         
-        # Priority 1: Use URL query params (from Gorgias template variables)
-        ticket_body = subject or ""
-        email = customer_email or ""
-        
-        # Priority 2: Try POST body if available
+        # 1. Resolve inputs (Fetch from Gorgias if needed)
+        # Wrap this in a small timeout too if possible, but for now we'll just track it
         if not ticket_body and request_body:
             ticket_data = request_body.get("ticket", {})
             message_data = request_body.get("message", {})
@@ -120,133 +119,105 @@ async def gorgias_widget(
             if isinstance(customer, dict) and not email:
                 email = customer.get("email", "")
         
-        # Priority 3: Fetch from Gorgias API (formexwatch) as last resort
         if not ticket_body and ticket_id and hasattr(adapter, 'fetch_ticket'):
-            ticket_data = adapter.fetch_ticket(ticket_id)
-            if ticket_data:
-                ticket_body = (
-                    ticket_data.get("excerpt") or 
-                    ticket_data.get("subject") or ""
+            # Fetching from API can be slow
+            try:
+                ticket_data = await asyncio.wait_for(
+                    asyncio.to_thread(adapter.fetch_ticket, ticket_id),
+                    timeout=1.5 # Max 1.5s for ticket fetch
                 )
-                customer = ticket_data.get("customer", {})
-                email = customer.get("email", "") if isinstance(customer, dict) else ""
-        
+                if ticket_data:
+                    ticket_body = ticket_data.get("excerpt") or ticket_data.get("subject") or ""
+                    customer = ticket_data.get("customer", {})
+                    email = customer.get("email", "") if isinstance(customer, dict) else ""
+            except asyncio.TimeoutError:
+                print(f"⏱️ Gorgias API fetch timed out for ticket {ticket_id}")
+
         if not ticket_body:
             return {
                 "type": "text",
                 "text": "⚠️ No ticket data received. Make sure the URL includes: &subject={{ticket.subject}}"
             }
 
-    # --- TOTAL TIME BUDGET: 4.5 Seconds (Gorgias kills at 5.0s) ---
-        start_time = time.time()
-        TOTAL_BUDGET = 4.5
-        search_results = [] # Initialize search_results for wider scope
-
+        # 2. Main Processing Block (Search + AI)
         try:
-            # 1. Retrieve context (Gorgias Ticket + Similar Embeddings) - [Expected: 1.0 - 2.0s]
-            # Fetch ticket details first (already done above, but keeping structure from instruction)
-            # The existing logic for fetching ticket_body and email covers this.
-            # We'll use the `engine.vector_service` for search as per original code.
+            # Calculate remaining time for the core logic
+            remaining_for_core = TOTAL_BUDGET - (time.time() - start_time)
+            if remaining_for_core <= 1.0:
+                 raise asyncio.TimeoutError("Not enough time left for AI/Search")
 
-            # Perform Search
-            namespace = f"org_{org_id}"
-            search_results = await asyncio.to_thread(
-                engine.vector_service.similarity_search_with_score,
-                query=ticket_body,
-                k=5,
-                namespace=namespace
-            )
-
-            # 2. Calculate remaining time for AI
-            elapsed = time.time() - start_time
-            remaining_time = TOTAL_BUDGET - elapsed
-
-            if remaining_time <= 0.5:
-                 # If we have less than 0.5s left, don't even try AI. Return search results.
-                 print(f"⚠️ Low time budget ({remaining_time:.2f}s). Skipping LLM.")
-                 raise asyncio.TimeoutError()
-
-            # 3. Try to generate AI Answer with remaining logic
-            try:
-                result = await asyncio.wait_for(
-                    engine.generate_response(
-                        current_ticket_body=ticket_body, # Use the ticket_body derived earlier
-                        customer_email=email, # Use the email derived earlier
-                        org_id=org_id,
-                        bigcommerce_adapter=adapter, # Use the adapter derived earlier
-                        search_results=search_results
-                    ),
-                    timeout=remaining_time  # Use exact remaining time!
+            # Perform Search & AI together in the remaining time
+            async def run_pipeline():
+                # Perform Search
+                namespace = f"org_{org_id}"
+                results = await asyncio.to_thread(
+                    engine.vector_service.similarity_search_with_score,
+                    query=ticket_body,
+                    k=5,
+                    namespace=namespace
                 )
                 
-                # ... process result ... (keep existing logic)
+                # Check time before LLM
+                if time.time() - start_time > 3.0: # If search took too long
+                     return {"search_results": results, "llm_skipped": True}
+
+                # Generate AI Response
+                result = await engine.generate_response(
+                    current_ticket_body=ticket_body,
+                    customer_email=email,
+                    org_id=org_id,
+                    bigcommerce_adapter=adapter,
+                    search_results=results
+                )
+                return {"llm_result": result, "search_results": results}
+
+            pipeline_result = await asyncio.wait_for(run_pipeline(), timeout=remaining_for_core)
+            search_results = pipeline_result["search_results"]
+            
+            if "llm_result" in pipeline_result:
+                result = pipeline_result["llm_result"]
                 suggested_draft = result["suggested_draft"]
                 confidence = result.get("confidence_score", 0.0)
-                sources = result.get("source_references", []) # Changed from 'sources' to 'source_references' to match existing code
+                sources = result.get("source_references", [])
                 
-                # Format sources for display
-                # Simplified Source Format for Widget (from original code)
                 sources_text = ""
                 if sources:
-                     # Extract ticket IDs if possible
                      sources_text = "\n\n**Refs:** " + ", ".join(s.replace("Ticket #", "#") for s in sources[:3])
                 
                 confidence_emoji = "🟢" if confidence >= 0.6 else "🟡" if confidence >= 0.35 else "🔴"
                 
-                # Re-using the original text-based response format for consistency with the widget
                 return {
                     "type": "text",
                     "text": f"**{confidence_emoji} Smart Assist** ({confidence:.0%})\n\n{suggested_draft}{sources_text}"
                 }
-
-            except asyncio.TimeoutError:
-                raise asyncio.TimeoutError() # Reraise to hit the fallback block below
+            else:
+                # LLM was skipped but we have search results
+                raise asyncio.TimeoutError()
 
         except asyncio.TimeoutError:
-            # 4. Fallback: Return raw search results (Instant)
-            print("⏱️ LLM Timed out or skipped. Returning fallback search results.")
-            
-            # If search failed or was empty, handle gracefully
+            # 3. Fallback: Return raw search results (Instant)
+            print("⏱️ Timeout reached! Returning search results.")
             if not search_results:
-                 return {"type": "text", "text": "🔍 No relevant help articles found."}
+                 return {"type": "text", "text": "🔍 Search results not ready or not found."}
 
             matches = []
             valid_count = 0
-            
             for doc, score in search_results:
                 content = doc.page_content.strip()
-                
-                # Filter low quality content 
                 if "(No description provided)" in content or len(content) < 50:
                     continue
-
-                if "Subject:" in content:
-                    content = content.replace("Subject:", "**Subject:**")
-                if "Excerpt:" in content:
-                    content = content.replace("Excerpt:", "\n**Excerpt:**")
-                
-                if len(content) > 300:
-                    content = content[:300] + "..."
-                    
                 tid = doc.metadata.get('source_id', '?')
-                matches.append(f"🎫 **#{tid}** ({score:.0%})\n{content}")
+                matches.append(f"🎫 **#{tid}** ({score:.0%})\n{content[:200]}...")
                 valid_count += 1
-                if valid_count >= 3:
-                    break
+                if valid_count >= 3: break
             
-            matches_text = "\n\n---\n\n".join(matches)
-            
-            if not matches:
-                 return {"type": "text", "text": "🔍 Found matches but they lacked content."}
-
             return {
-                 "type": "text",
-                 "text": f"**🟡 Smart Assist (Search Results)**\n\n{matches_text}"
+                "type": "text",
+                "text": f"**🟡 Smart Assist (Search Results)**\n\n" + "\n\n---\n\n".join(matches)
             }
-            
+
     except Exception as e:
-        print(f"Error in gorgias_widget: {e}")
-        return {
-            "type": "text",
-            "text": f"⚠️ Error: {str(e)}"
-        }
+        import traceback
+        traceback.print_exc()
+        return {"type": "text", "text": f"⚠️ Error: {str(e)}"}
+
