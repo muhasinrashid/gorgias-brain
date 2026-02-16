@@ -14,3 +14,4 @@ langchain-community
 beautifulsoup4
 pytest
 alembic
+apify-client

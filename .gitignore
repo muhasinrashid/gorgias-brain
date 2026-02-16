@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .env
 .env.local
+.env_temp
 node_modules/
 .next/
 dist/
@@ -15,3 +16,5 @@ env/
 backend/venv/
 backend/.env
 frontend/.env.local
+.pytest_cache/
+debug_*.py

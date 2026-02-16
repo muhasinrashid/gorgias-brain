@@ -1,8 +1,11 @@
 import os
+from pathlib import Path
 from functools import lru_cache
 from dotenv import load_dotenv
 
-load_dotenv()
+# Resolve .env relative to this file's directory (backend/), not CWD
+_env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(_env_path)
 
 class Settings:
     PROJECT_NAME: str = "Universal Support Brain"
