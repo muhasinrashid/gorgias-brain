@@ -108,6 +108,15 @@ async def _build_conversation_context(
         
         conversation_parts.append(f"[{sender}]: {text}")
     
+    # Extract the absolute newest message to check who sent it
+    is_latest_customer = True
+    if messages:
+        last_msg = messages[-1]
+        last_msg_from_agent = last_msg.get("from_agent")
+        is_latest_customer = (last_msg_from_agent is False) or (
+            (last_msg.get("sender") or {}).get("type", "") in ("customer", "user")
+        )
+
     # Extract the latest customer message for search query enrichment
     latest_customer_msg = ""
     for msg in reversed(messages):
@@ -121,7 +130,7 @@ async def _build_conversation_context(
                 latest_customer_msg = text.strip()
                 break
     
-    return "\n".join(conversation_parts), latest_customer_msg
+    return "\n".join(conversation_parts), latest_customer_msg, is_latest_customer
 
 
 def _build_search_query(subject: str, latest_message: str) -> str:
@@ -252,18 +261,26 @@ async def handle_ticket(
         # 2. Fetch Conversation
         conversation_history = ""
         latest_customer_msg = ""
+        is_latest_customer = True
         ticket_subject = subject or ""
 
         if ticket_id and hasattr(adapter, 'client'):
             try:
                 # We are in background, so we have 30s. No problem.
-                conversation_history, latest_customer_msg = await _build_conversation_context(
+                conversation_history, latest_customer_msg, is_latest_customer = await _build_conversation_context(
                     adapter, ticket_id, timeout=10.0
                 )
                 if conversation_history:
                     print(f"📝 Conversation history ({len(conversation_history)} chars)")
             except Exception as e:
                 print(f"⏱️ Conversation fetch failed: {e}")
+
+        # INFINITE LOOP PREVENTION:
+        # If the absolute latest message was from an agent (or our bot's internal note),
+        # Gorgias triggered this webhook on our own reply. Do not process it again.
+        if not is_latest_customer:
+            print(f"🛑 Aborting. The latest message on ticket {ticket_id} is from an Agent/Bot. (Webhook loop prevention)")
+            return
 
         if latest_customer_msg and (ticket_body == ticket_subject or not ticket_body):
             ticket_body = latest_customer_msg
