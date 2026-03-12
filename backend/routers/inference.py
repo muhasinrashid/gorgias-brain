@@ -268,76 +268,52 @@ async def gorgias_widget(
                 "text": "⚠️ No ticket data received. Make sure the URL includes: &subject={{ticket.subject}}"
             }
 
-        # 2. Run conversation history fetch + vector search IN PARALLEL
-        #    This is critical for the 5s Gorgias timeout — both are network calls
-        conversation_history = ""
-        latest_customer_msg = ""
+        # 2. FIRE-AND-FORGET: Start conversation fetch in background
+        #    Don't wait for it — check later if it arrived before LLM
         ticket_subject = subject or ""
+        search_query = _build_search_query(ticket_subject, ticket_body)
+        conv_task = None
         
-        remaining_for_pipeline = TOTAL_BUDGET - (time.time() - start_time)
-        if remaining_for_pipeline <= 1.0:
-            return {"type": "text", "text": "⏱️ Not enough time remaining for processing."}
-        
-        search_query = _build_search_query(ticket_subject, ticket_body)  # Default query
-        
-        try:
-            async def fetch_conversation_safe():
-                """Fetch conversation history — best effort, won't block search."""
+        if ticket_id and hasattr(adapter, 'client'):
+            async def _fetch_conv():
                 try:
-                    if not ticket_id or not hasattr(adapter, 'client'):
-                        return "", ""
-                    return await _build_conversation_context(
-                        adapter, ticket_id, timeout=1.0
-                    )
-                except Exception as e:
-                    print(f"⏱️ Conversation fetch failed: {e}")
+                    return await _build_conversation_context(adapter, ticket_id, timeout=1.5)
+                except Exception:
                     return "", ""
-            
-            async def run_vector_search_safe():
-                """Vector search — critical path, gets more time."""
-                try:
-                    namespace = f"org_{org_id}"
-                    return await asyncio.wait_for(
-                        asyncio.to_thread(
-                            engine.vector_service.similarity_search_with_score,
-                            query=search_query,
-                            k=5,
-                            namespace=namespace
-                        ),
-                        timeout=3.0
-                    )
-                except Exception as e:
-                    print(f"⏱️ Vector search failed: {e}")
-                    return []
-            
-            # Run BOTH in parallel — each has its own timeout, so one failing
-            # doesn't kill the other
-            conv_result, search_result = await asyncio.gather(
-                fetch_conversation_safe(),
-                run_vector_search_safe()
-            )
-            
-            conversation_history, latest_customer_msg = conv_result
-            if search_result:
-                search_results = search_result
-            
-            if conversation_history:
-                print(f"📝 Conversation history ({len(conversation_history)} chars)")
-            if latest_customer_msg:
-                print(f"💬 Latest msg: {latest_customer_msg[:80]}...")
-            
-            # Update ticket_body to actual latest customer message if we only had the subject
-            if latest_customer_msg and (ticket_body == ticket_subject or not ticket_body):
-                ticket_body = latest_customer_msg
-                print(f"📌 Using latest customer message as ticket_body")
-            
-            # Enrich search query for LLM prompt context
-            search_query = _build_search_query(ticket_subject, ticket_body)
-            
-        except Exception as e:
-            print(f"⚠️ Error in parallel fetch: {e}")
+            conv_task = asyncio.create_task(_fetch_conv())
         
-        # 3. LLM Generation (if time permits)
+        # 3. CRITICAL PATH: Vector search (gets priority on time)
+        try:
+            namespace = f"org_{org_id}"
+            search_results = await asyncio.wait_for(
+                asyncio.to_thread(
+                    engine.vector_service.similarity_search_with_score,
+                    query=search_query, k=5, namespace=namespace
+                ),
+                timeout=3.0
+            )
+        except Exception as e:
+            print(f"⏱️ Vector search failed: {e}")
+        
+        # 4. CHECK: Did conversation history arrive? (non-blocking)
+        conversation_history = ""
+        if conv_task and conv_task.done():
+            try:
+                conv_history, latest_msg = conv_task.result()
+                conversation_history = conv_history
+                if latest_msg and (ticket_body == ticket_subject or not ticket_body):
+                    ticket_body = latest_msg
+                    search_query = _build_search_query(ticket_subject, ticket_body)
+                    print(f"📌 Got conversation context + latest msg: {latest_msg[:60]}...")
+                elif conv_history:
+                    print(f"📝 Got conversation history ({len(conv_history)} chars)")
+            except Exception:
+                pass
+        elif conv_task:
+            conv_task.cancel()  # Don't let it run forever
+            print(f"⏱️ Conversation fetch still pending — proceeding without it")
+        
+        # 5. LLM Generation (remaining time)
         try:
             remaining_for_llm = TOTAL_BUDGET - (time.time() - start_time)
             if remaining_for_llm <= 0.5:
