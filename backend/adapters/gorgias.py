@@ -56,14 +56,16 @@ class GorgiasAdapter(BaseAdapter):
     def add_internal_note(self, ticket_id: str, note_text: str) -> Optional[Dict[str, Any]]:
         """Post an internal note to a Gorgias ticket."""
         try:
+            payload = {
+                "channel": "internal-note",
+                "via": "api",
+                "from_agent": True,
+                "body_text": note_text,
+                "sender": {"email": self.username}
+            }
             response = self.client.post(
                 f"/api/tickets/{ticket_id}/messages",
-                json={
-                    "channel": "internal-note",
-                    "source": {"type": "api", "to": []},
-                    "from_agent": True,
-                    "body_text": note_text
-                },
+                json=payload,
                 headers=self._get_headers()
             )
             return response.json() if response.status_code in (200, 201) else None
