@@ -268,69 +268,109 @@ async def gorgias_widget(
                 "text": "⚠️ No ticket data received. Make sure the URL includes: &subject={{ticket.subject}}"
             }
 
-        # 2. Fetch conversation history (for follow-up awareness)
+        # 2. Run conversation history fetch + vector search IN PARALLEL
+        #    This is critical for the 5s Gorgias timeout — both are network calls
         conversation_history = ""
         latest_customer_msg = ""
         ticket_subject = subject or ""
         
-        if ticket_id and hasattr(adapter, 'client'):
-            try:
-                remaining_for_history = max(0.5, TOTAL_BUDGET - (time.time() - start_time) - 3.0)
-                conversation_history, latest_customer_msg = await _build_conversation_context(
-                    adapter, ticket_id, timeout=remaining_for_history
-                )
-                if conversation_history:
-                    print(f"📝 Built conversation history ({len(conversation_history)} chars) for ticket {ticket_id}")
-                if latest_customer_msg:
-                    print(f"💬 Latest customer message: {latest_customer_msg[:100]}...")
-            except Exception as e:
-                print(f"⚠️ Could not build conversation history: {e}")
+        remaining_for_pipeline = TOTAL_BUDGET - (time.time() - start_time)
+        if remaining_for_pipeline <= 1.0:
+            return {"type": "text", "text": "⏱️ Not enough time remaining for processing."}
         
-        # If ticket_body is just the subject and we have a real customer message, use it
-        if latest_customer_msg and (ticket_body == ticket_subject or not ticket_body):
-            ticket_body = latest_customer_msg
-            print(f"📌 Updated ticket_body to latest customer message")
-        
-        # 3. Build enriched search query (Fix 3: combine subject + latest message)
-        search_query = _build_search_query(ticket_subject, ticket_body)
-        if search_query != ticket_body:
-            print(f"🔍 Enriched search query: {search_query[:100]}...")
-
-        # 4. Main Processing Block (Search + AI)
         try:
-            # Calculate remaining time for the core logic
-            remaining_for_core = TOTAL_BUDGET - (time.time() - start_time)
-            if remaining_for_core <= 1.0:
-                 raise asyncio.TimeoutError("Not enough time left for AI/Search")
-
-            # Perform Search & AI together in the remaining time
-            async def run_pipeline():
-                # Perform Search using enriched query
+            async def fetch_conversation():
+                """Fetch conversation history (runs in parallel with search)."""
+                if not ticket_id or not hasattr(adapter, 'client'):
+                    return "", ""
+                return await _build_conversation_context(
+                    adapter, ticket_id, timeout=min(1.5, remaining_for_pipeline - 1.0)
+                )
+            
+            async def run_vector_search():
+                """Initial vector search using subject as query (runs in parallel)."""
                 namespace = f"org_{org_id}"
-                results = await asyncio.to_thread(
+                initial_query = _build_search_query(ticket_subject, ticket_body)
+                return await asyncio.to_thread(
                     engine.vector_service.similarity_search_with_score,
-                    query=search_query,
+                    query=initial_query,
                     k=5,
                     namespace=namespace
                 )
-                
-                # Check time before LLM
-                if time.time() - start_time > TOTAL_BUDGET - 1.5: # If search took too long
-                     return {"search_results": results, "llm_skipped": True}
-
-                # Generate AI Response with conversation context
-                result = await engine.generate_response(
+            
+            # Run BOTH in parallel
+            (conv_history, latest_msg), search_results = await asyncio.wait_for(
+                asyncio.gather(fetch_conversation(), run_vector_search()),
+                timeout=remaining_for_pipeline - 1.0  # Leave 1s for LLM minimum
+            )
+            
+            conversation_history = conv_history
+            latest_customer_msg = latest_msg
+            
+            if conversation_history:
+                print(f"📝 Built conversation history ({len(conversation_history)} chars) for ticket {ticket_id}")
+            if latest_customer_msg:
+                print(f"💬 Latest customer message: {latest_customer_msg[:100]}...")
+            
+            # If ticket_body is just the subject and we have a real customer message, use it
+            effective_body = ticket_body
+            if latest_customer_msg and (ticket_body == ticket_subject or not ticket_body):
+                effective_body = latest_customer_msg
+                print(f"📌 Updated ticket_body to latest customer message")
+            
+            search_query = _build_search_query(ticket_subject, effective_body)
+            if search_query != effective_body:
+                print(f"🔍 Enriched search query: {search_query[:100]}...")
+            
+            # If we got a better query from conversation, re-run search
+            # Only if the effective_body changed from original ticket_body
+            if effective_body != ticket_body:
+                try:
+                    rerun_timeout = TOTAL_BUDGET - (time.time() - start_time) - 1.5
+                    if rerun_timeout > 0.5:
+                        namespace = f"org_{org_id}"
+                        search_results = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                engine.vector_service.similarity_search_with_score,
+                                query=search_query, k=5, namespace=namespace
+                            ),
+                            timeout=rerun_timeout
+                        )
+                        print(f"🔄 Re-ran search with enriched query")
+                except asyncio.TimeoutError:
+                    print(f"⏱️ Skipped search re-run (timeout), using initial results")
+            
+            ticket_body = effective_body
+            
+        except asyncio.TimeoutError:
+            print(f"⏱️ Parallel fetch timed out")
+            # search_results may or may not be populated
+        except Exception as e:
+            print(f"⚠️ Error in parallel fetch: {e}")
+        
+        # 3. LLM Generation (if time permits)
+        try:
+            remaining_for_llm = TOTAL_BUDGET - (time.time() - start_time)
+            if remaining_for_llm <= 0.5:
+                raise asyncio.TimeoutError("Not enough time for LLM")
+            
+            if not search_results:
+                raise asyncio.TimeoutError("No search results available")
+            
+            async def run_llm():
+                return await engine.generate_response(
                     current_ticket_body=ticket_body,
                     customer_email=email,
                     org_id=org_id,
                     bigcommerce_adapter=adapter,
-                    search_results=results,
+                    search_results=search_results,
                     conversation_history=conversation_history,
-                    search_query=search_query
+                    search_query=search_query if 'search_query' in dir() else ticket_body
                 )
-                return {"llm_result": result, "search_results": results}
-
-            pipeline_result = await asyncio.wait_for(run_pipeline(), timeout=remaining_for_core)
+            
+            result = await asyncio.wait_for(run_llm(), timeout=remaining_for_llm)
+            
+            pipeline_result = {"llm_result": result, "search_results": search_results}
             search_results = pipeline_result["search_results"]
             
             if "llm_result" in pipeline_result:
