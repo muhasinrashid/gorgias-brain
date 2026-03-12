@@ -281,33 +281,45 @@ async def gorgias_widget(
         search_query = _build_search_query(ticket_subject, ticket_body)  # Default query
         
         try:
-            async def fetch_conversation():
-                """Fetch conversation history (runs in parallel with search)."""
-                if not ticket_id or not hasattr(adapter, 'client'):
+            async def fetch_conversation_safe():
+                """Fetch conversation history — best effort, won't block search."""
+                try:
+                    if not ticket_id or not hasattr(adapter, 'client'):
+                        return "", ""
+                    return await _build_conversation_context(
+                        adapter, ticket_id, timeout=1.0
+                    )
+                except Exception as e:
+                    print(f"⏱️ Conversation fetch failed: {e}")
                     return "", ""
-                return await _build_conversation_context(
-                    adapter, ticket_id, timeout=min(1.0, remaining_for_pipeline - 2.0)
-                )
             
-            async def run_vector_search():
-                """Vector search using subject as query (runs in parallel)."""
-                namespace = f"org_{org_id}"
-                initial_query = _build_search_query(ticket_subject, ticket_body)
-                return await asyncio.to_thread(
-                    engine.vector_service.similarity_search_with_score,
-                    query=initial_query,
-                    k=5,
-                    namespace=namespace
-                )
+            async def run_vector_search_safe():
+                """Vector search — critical path, gets more time."""
+                try:
+                    namespace = f"org_{org_id}"
+                    return await asyncio.wait_for(
+                        asyncio.to_thread(
+                            engine.vector_service.similarity_search_with_score,
+                            query=search_query,
+                            k=5,
+                            namespace=namespace
+                        ),
+                        timeout=3.0
+                    )
+                except Exception as e:
+                    print(f"⏱️ Vector search failed: {e}")
+                    return []
             
-            # Run BOTH in parallel — this is the key optimization
-            (conv_history, latest_msg), search_results = await asyncio.wait_for(
-                asyncio.gather(fetch_conversation(), run_vector_search()),
-                timeout=min(2.0, remaining_for_pipeline - 2.0)  # Leave 2s+ for LLM
+            # Run BOTH in parallel — each has its own timeout, so one failing
+            # doesn't kill the other
+            conv_result, search_result = await asyncio.gather(
+                fetch_conversation_safe(),
+                run_vector_search_safe()
             )
             
-            conversation_history = conv_history
-            latest_customer_msg = latest_msg
+            conversation_history, latest_customer_msg = conv_result
+            if search_result:
+                search_results = search_result
             
             if conversation_history:
                 print(f"📝 Conversation history ({len(conversation_history)} chars)")
@@ -319,14 +331,9 @@ async def gorgias_widget(
                 ticket_body = latest_customer_msg
                 print(f"📌 Using latest customer message as ticket_body")
             
-            # Build enriched search query (for LLM prompt context, NOT for re-search)
+            # Enrich search query for LLM prompt context
             search_query = _build_search_query(ticket_subject, ticket_body)
             
-            ticket_body = ticket_body
-            
-        except asyncio.TimeoutError:
-            print(f"⏱️ Parallel fetch timed out")
-            # search_results may or may not be populated
         except Exception as e:
             print(f"⚠️ Error in parallel fetch: {e}")
         
