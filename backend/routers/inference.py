@@ -323,8 +323,11 @@ async def handle_ticket(
         final_text = f"{confidence_emoji} **Smart Assist AI** ({confidence:.0%})\n\n{suggested_draft}{sources_text}"
 
         if ticket_id and hasattr(adapter, 'add_internal_note'):
-            adapter.add_internal_note(ticket_id, final_text)
-            print(f"✅ Posted internal note to ticket {ticket_id}")
+            note_response = adapter.add_internal_note(ticket_id, final_text)
+            if note_response:
+                print(f"✅ Posted internal note to ticket {ticket_id}", flush=True)
+            else:
+                print(f"⚠️ Failed to post internal note to ticket {ticket_id}. Check API credentials and ticket ID.", flush=True)
 
     except Exception as e:
         import traceback

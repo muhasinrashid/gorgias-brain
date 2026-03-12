@@ -68,7 +68,13 @@ class GorgiasAdapter(BaseAdapter):
                 json=payload,
                 headers=self._get_headers()
             )
-            return response.json() if response.status_code in (200, 201) else None
+            
+            if response.status_code in (200, 201):
+                return response.json()
+            else:
+                print(f"❌ Gorgias API rejected internal note (Status {response.status_code}): {response.text}", flush=True)
+                return None
+                
         except Exception as e:
-            print(f"Error posting internal note: {e}")
+            print(f"Error posting internal note: {e}", flush=True)
             return None
