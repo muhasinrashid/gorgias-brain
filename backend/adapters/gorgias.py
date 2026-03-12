@@ -52,3 +52,21 @@ class GorgiasAdapter(BaseAdapter):
     def get_order_status(self, email: str) -> List[Dict[str, Any]]:
         # Gorgias is not an E-commerce platform, return empty
         return []
+
+    def add_internal_note(self, ticket_id: str, note_text: str) -> Optional[Dict[str, Any]]:
+        """Post an internal note to a Gorgias ticket."""
+        try:
+            response = self.client.post(
+                f"/api/tickets/{ticket_id}/messages",
+                json={
+                    "channel": "internal-note",
+                    "source": {"type": "api", "to": []},
+                    "from_agent": True,
+                    "body_text": note_text
+                },
+                headers=self._get_headers()
+            )
+            return response.json() if response.status_code in (200, 201) else None
+        except Exception as e:
+            print(f"Error posting internal note: {e}")
+            return None

@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 import time
@@ -208,34 +208,21 @@ async def generate_suggestion(
         # Log the full error in production logging system
         print(f"Error in generate_suggestion: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error during suggestion generation.")
-
-
-@router.post("/gorgias-widget", dependencies=[Depends(verify_api_key)])
-@router.get("/gorgias-widget", dependencies=[Depends(verify_api_key)])
-async def gorgias_widget(
-    ticket_id: str = None,
-    subject: str = None,
-    customer_email: str = None,
-    org_id: int = 1,
-    request_body: Dict[str, Any] = Body(default=None),
-    db: Session = Depends(get_db),
-    engine: ReasoningEngine = Depends(get_reasoning_engine)
-) -> Dict[str, Any]:
-    # --- TOTAL TIME BUDGET ---
-    # Gorgias HTTP integration kills at 5.0s, so production uses 4.5s.
-    # For local testing, we use a longer budget to avoid false timeouts.
-    import os
-    start_time = time.time()
-    TOTAL_BUDGET = float(os.getenv("WIDGET_TIMEOUT", "4.5"))
-    search_results = []
-    ticket_body = subject or ""
-    email = customer_email or ""
-    
+async def handle_ticket(
+    ticket_id: str,
+    subject: str,
+    customer_email: str,
+    org_id: int,
+    request_body: Dict[str, Any],
+    adapter,
+    engine
+):
+    print(f"🚀 Starting background processing for ticket {ticket_id}")
     try:
-        adapter = get_client_context(org_id, db)
+        ticket_body = subject or ""
+        email = customer_email or ""
         
-        # 1. Resolve inputs (Fetch from Gorgias if needed)
-        # Wrap this in a small timeout too if possible, but for now we'll just track it
+        # 1. Resolve inputs
         if not ticket_body and request_body:
             ticket_data = request_body.get("ticket", {})
             message_data = request_body.get("message", {})
@@ -248,140 +235,141 @@ async def gorgias_widget(
             if isinstance(customer, dict) and not email:
                 email = customer.get("email", "")
         
-        if not ticket_body and ticket_id and hasattr(adapter, 'fetch_ticket'):
-            # Fetching from API can be slow
+        if not ticket_body and ticket_id and hasattr(adapter, 'client'):
             try:
-                ticket_data = await asyncio.wait_for(
-                    asyncio.to_thread(adapter.fetch_ticket, ticket_id),
-                    timeout=1.5 # Max 1.5s for ticket fetch
-                )
+                ticket_data = adapter.fetch_ticket(ticket_id)
                 if ticket_data:
                     ticket_body = ticket_data.get("excerpt") or ticket_data.get("subject") or ""
                     customer = ticket_data.get("customer", {})
                     email = customer.get("email", "") if isinstance(customer, dict) else ""
-            except asyncio.TimeoutError:
-                print(f"⏱️ Gorgias API fetch timed out for ticket {ticket_id}")
+            except Exception as e:
+                print(f"⏱️ API fetch failed: {e}")
 
         if not ticket_body:
-            return {
-                "type": "text",
-                "text": "⚠️ No ticket data received. Make sure the URL includes: &subject={{ticket.subject}}"
-            }
+            print(f"⚠️ No ticket body found, aborting background task for {ticket_id}")
+            return
 
-        # 2. FIRE-AND-FORGET: Start conversation fetch in background
-        #    Don't wait for it — check later if it arrived before LLM
+        # 2. Fetch Conversation
+        conversation_history = ""
+        latest_customer_msg = ""
         ticket_subject = subject or ""
-        search_query = _build_search_query(ticket_subject, ticket_body)
-        conv_task = None
-        
+
         if ticket_id and hasattr(adapter, 'client'):
-            async def _fetch_conv():
-                try:
-                    return await _build_conversation_context(adapter, ticket_id, timeout=1.5)
-                except Exception:
-                    return "", ""
-            conv_task = asyncio.create_task(_fetch_conv())
-        
-        # 3. CRITICAL PATH: Vector search (gets priority on time)
+            try:
+                # We are in background, so we have 30s. No problem.
+                conversation_history, latest_customer_msg = await _build_conversation_context(
+                    adapter, ticket_id, timeout=10.0
+                )
+                if conversation_history:
+                    print(f"📝 Conversation history ({len(conversation_history)} chars)")
+            except Exception as e:
+                print(f"⏱️ Conversation fetch failed: {e}")
+
+        if latest_customer_msg and (ticket_body == ticket_subject or not ticket_body):
+            ticket_body = latest_customer_msg
+            print(f"📌 Using latest customer message as ticket_body")
+            
+        search_query = _build_search_query(ticket_subject, ticket_body)
+
+        # 3. Vector search
+        namespace = f"org_{org_id}"
         try:
-            namespace = f"org_{org_id}"
-            search_results = await asyncio.wait_for(
-                asyncio.to_thread(
-                    engine.vector_service.similarity_search_with_score,
-                    query=search_query, k=5, namespace=namespace
-                ),
-                timeout=3.0
+            search_results = await asyncio.to_thread(
+                engine.vector_service.similarity_search_with_score,
+                query=search_query, k=5, namespace=namespace
             )
         except Exception as e:
-            print(f"⏱️ Vector search failed: {e}")
-        
-        # 4. CHECK: Did conversation history arrive? (non-blocking)
-        conversation_history = ""
-        if conv_task and conv_task.done():
-            try:
-                conv_history, latest_msg = conv_task.result()
-                conversation_history = conv_history
-                if latest_msg and (ticket_body == ticket_subject or not ticket_body):
-                    ticket_body = latest_msg
-                    search_query = _build_search_query(ticket_subject, ticket_body)
-                    print(f"📌 Got conversation context + latest msg: {latest_msg[:60]}...")
-                elif conv_history:
-                    print(f"📝 Got conversation history ({len(conv_history)} chars)")
-            except Exception:
-                pass
-        elif conv_task:
-            conv_task.cancel()  # Don't let it run forever
-            print(f"⏱️ Conversation fetch still pending — proceeding without it")
-        
-        # 5. LLM Generation (remaining time)
+            print(f"⚠️ Vector search failed: {e}")
+            search_results = []
+            
+        if not search_results:
+            print(f"⚠️ No search results, aborting.")
+            if ticket_id and hasattr(adapter, 'add_internal_note'):
+                adapter.add_internal_note(ticket_id, "🔍 Smart Assist: No relevant knowledge found.")
+            return
+
+        # 4. LLM Generation
         try:
-            remaining_for_llm = TOTAL_BUDGET - (time.time() - start_time)
-            if remaining_for_llm <= 0.5:
-                raise asyncio.TimeoutError("Not enough time for LLM")
-            
-            if not search_results:
-                raise asyncio.TimeoutError("No search results available")
-            
-            async def run_llm():
-                return await engine.generate_response(
-                    current_ticket_body=ticket_body,
-                    customer_email=email,
-                    org_id=org_id,
-                    bigcommerce_adapter=adapter,
-                    search_results=search_results,
-                    conversation_history=conversation_history,
-                    search_query=search_query
-                )
-            
-            result = await asyncio.wait_for(run_llm(), timeout=remaining_for_llm)
-            
-            pipeline_result = {"llm_result": result, "search_results": search_results}
-            search_results = pipeline_result["search_results"]
-            
-            if "llm_result" in pipeline_result:
-                result = pipeline_result["llm_result"]
-                suggested_draft = result["suggested_draft"]
-                confidence = result.get("confidence_score", 0.0)
-                sources = result.get("source_references", [])
-                
-                sources_text = ""
-                if sources:
-                     sources_text = "\n\n**Refs:** " + ", ".join(s.replace("Ticket #", "#") for s in sources[:3])
-                
-                confidence_emoji = "🟢" if confidence >= 0.6 else "🟡" if confidence >= 0.35 else "🔴"
-                
-                return {
-                    "type": "text",
-                    "text": f"**{confidence_emoji} Smart Assist** ({confidence:.0%})\n\n{suggested_draft}{sources_text}"
-                }
-            else:
-                # LLM was skipped but we have search results
-                raise asyncio.TimeoutError()
+            result = await engine.generate_response(
+                current_ticket_body=ticket_body,
+                customer_email=email,
+                org_id=org_id,
+                bigcommerce_adapter=adapter,
+                search_results=search_results,
+                conversation_history=conversation_history,
+                search_query=search_query
+            )
+        except Exception as e:
+            print(f"⚠️ LLM failed: {e}")
+            return
 
-        except asyncio.TimeoutError:
-            # 3. Fallback: Return raw search results (Instant)
-            print("⏱️ Timeout reached! Returning search results.")
-            if not search_results:
-                 return {"type": "text", "text": "🔍 Search results not ready or not found."}
+        # 5. Post Internal Note
+        suggested_draft = result.get("suggested_draft", "")
+        confidence = result.get("confidence_score", 0.0)
+        sources = result.get("source_references", [])
+        
+        confidence_emoji = "🟢" if confidence >= 0.8 else "🟡" if confidence >= 0.35 else "🔴"
+        
+        sources_text = ""
+        if sources:
+            source_links = []
+            for src in sources:
+                if src.startswith("http"):
+                    source_links.append(f"[{src.split('/')[-1]}]({src})")
+                else:
+                    source_links.append(f"#{src}")
+            sources_text = f"\n\n**Refs:** {', '.join(source_links)}"
+        
+        final_text = f"{confidence_emoji} **Smart Assist AI** ({confidence:.0%})\n\n{suggested_draft}{sources_text}"
 
-            matches = []
-            valid_count = 0
-            for doc, score in search_results:
-                content = doc.page_content.strip()
-                if "(No description provided)" in content or len(content) < 50:
-                    continue
-                tid = doc.metadata.get('source_id', '?')
-                matches.append(f"🎫 **#{tid}** ({score:.0%})\n{content[:200]}...")
-                valid_count += 1
-                if valid_count >= 3: break
-            
+        if ticket_id and hasattr(adapter, 'add_internal_note'):
+            adapter.add_internal_note(ticket_id, final_text)
+            print(f"✅ Posted internal note to ticket {ticket_id}")
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        if ticket_id and hasattr(adapter, 'add_internal_note'):
+            adapter.add_internal_note(ticket_id, f"⚠️ Error analyzing ticket: {str(e)}")
+
+
+@router.post("/gorgias-widget", dependencies=[Depends(verify_api_key)])
+@router.get("/gorgias-widget", dependencies=[Depends(verify_api_key)])
+async def gorgias_widget(
+    background_tasks: BackgroundTasks,
+    ticket_id: str = None,
+    subject: str = None,
+    customer_email: str = None,
+    org_id: int = 1,
+    request_body: Dict[str, Any] = Body(default=None),
+    db: Session = Depends(get_db),
+    engine: ReasoningEngine = Depends(get_reasoning_engine)
+) -> Dict[str, Any]:
+    try:
+        adapter = get_client_context(org_id, db)
+        
+        if ticket_id:
+            background_tasks.add_task(
+                handle_ticket, 
+                ticket_id=ticket_id, 
+                subject=subject, 
+                customer_email=customer_email, 
+                org_id=org_id, 
+                request_body=request_body, 
+                adapter=adapter, 
+                engine=engine
+            )
+            return {
+                "type": "text", 
+                "text": "⏳ Smart Assist is analyzing your ticket... (Check internal notes shortly)"
+            }
+        else:
             return {
                 "type": "text",
-                "text": f"**🟡 Smart Assist (Search Results)**\n\n" + "\n\n---\n\n".join(matches)
+                "text": "⚠️ No ticket_id provided."
             }
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         return {"type": "text", "text": f"⚠️ Error: {str(e)}"}
-
