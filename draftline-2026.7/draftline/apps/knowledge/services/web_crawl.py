@@ -30,14 +30,22 @@ def _extract_domain(url: str) -> str:
 
 
 def build_glob_patterns(url: str) -> list[dict[str, str]]:
-    base = url.rstrip("/")
+    """Stay under the seed path — do not open the whole origin (avoids PDP/legal dumps)."""
     parsed = urlparse(url)
-    origin = f"{parsed.scheme}://{parsed.netloc}"
+    path = parsed.path or "/"
+    # FAQ hubs often use ?hcUrl= — allow query variants under /faqs/
+    if "/faqs" in path.lower():
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+        return [
+            {"glob": f"{origin}/faqs"},
+            {"glob": f"{origin}/faqs/**"},
+            {"glob": f"{origin}/faqs?*"},
+        ]
+    base = url.rstrip("/")
     return [
         {"glob": base},
         {"glob": f"{base}/**"},
         {"glob": f"{base}?*"},
-        {"glob": f"{origin}/**"},
     ]
 
 
@@ -68,7 +76,15 @@ def build_draftline_actor_input(
         "maxCrawlPages": max_pages,
         "sameOriginOnly": True,
         "includeUrlPatterns": unique_patterns,
-        "excludeUrlPatterns": [],
+        "excludeUrlPatterns": [
+            "**/collections/**",
+            "**/products/**",
+            "**/cart**",
+            "**/checkout**",
+            "**/login**",
+            "**/search**",
+            "**/accessories/**",
+        ],
         "waitForSelector": "",
         "localeHint": "",
     }

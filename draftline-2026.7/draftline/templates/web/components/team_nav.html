@@ -50,6 +50,12 @@
       {% translate "Corpus Report" %}
     </a>
   </li>
+  <li>
+    <a href="{% url 'knowledge:curated_list' request.team.slug %}" {% if active_tab == 'curated' %}class="menu-active"{% endif %}>
+      <i class="fa fa-stamp h-4 w-4"></i>
+      {% translate "Curated" %}
+    </a>
+  </li>
   {% if request.user|is_admin_of:request.team %}
   <li>
     <a href="{% url 'subscriptions_team:subscription_demo' request.team.slug %}" {% if active_tab == 'subscription_demo' %}class="menu-active"{% endif %}>

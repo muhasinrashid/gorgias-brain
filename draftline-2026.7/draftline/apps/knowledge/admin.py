@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from apps.knowledge.models import Chunk, CuratedKnowledge, PlatformCrawlerSettings, ResolutionPair, Source
+from apps.knowledge.models import (
+    Chunk,
+    CuratedKnowledge,
+    IntentNode,
+    PlatformCrawlerSettings,
+    ResolutionPair,
+    Source,
+)
 
 
 @admin.register(Source)
@@ -29,6 +36,13 @@ class CuratedKnowledgeAdmin(admin.ModelAdmin):
     list_display = ("id", "team", "status", "intent", "is_deidentified", "approved_at")
     list_filter = ("status", "is_deidentified")
     search_fields = ("question", "answer")
+
+
+@admin.register(IntentNode)
+class IntentNodeAdmin(admin.ModelAdmin):
+    list_display = ("slug", "label", "parent", "source", "team", "is_active")
+    list_filter = ("source", "is_active")
+    search_fields = ("slug", "label")
 
 
 @admin.register(PlatformCrawlerSettings)

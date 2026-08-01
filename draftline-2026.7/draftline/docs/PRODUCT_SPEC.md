@@ -814,7 +814,7 @@ A real `BillingProvider` replaces `MANUAL` only when the entity and gateway deci
 | 0 | Reconnaissance | Pegasus + POC report written, `EXTERNAL_API_NOTES.md` extracted, layout reviewed |
 | 1 | Foundation & Tenancy | Isolation green; no untenanted model; credentials never serialise; no entitlement check reads a payment provider; staging deploys from CI |
 | 2 | Gorgias Ingestion | Backfill idempotent; qualifier ≥95% precision; Corpus Report delivered — **gate deferred 2026-08-01; open debt in [`docs/M1_STATUS.md`](M1_STATUS.md). M2 started in parallel.** |
-| 3 | Knowledge Layer | Recall@5 ≥0.85; citations resolve; precedence demonstrable |
+| 3 | Knowledge Layer | Recall@5 ≥0.85; citations resolve; precedence demonstrable — **closed 2026-08-02 on FAQ held-out (recall@5=0.950, language_match=1.0); see [`docs/M2_STATUS.md`](M2_STATUS.md). Proceeding to M3.** |
 | 4 | Commerce Grounding | ≥90% order identification; zero fabricated facts under adversarial test |
 | 5 | Draft Engine (shadow) | 500 shadow drafts; zero customer artefacts; fact-error under 2% |
 | 6 | Delta Engine | 2,000 classified pairs; leakage suite green; one full loop with measured lift |

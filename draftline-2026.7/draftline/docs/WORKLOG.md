@@ -1,5 +1,15 @@
 # Worklog
 
+## 2026-08-02 (M2 complete — gate + docs + push)
+
+**Built / finished:** Language-aware retrieve (EN/DE/FR/ES/IT); RP recency/CSAT weighting; citation resolve + Source UI; IntentNode taxonomy + `seed_intent_taxonomy` (`NOT_SUPPORT`); Curated edit + embed-on-approve + provenance; macro phrasing-only channel; FAQ/mixed/pairs `eval_retrieval` modes; quarantine + FAQ-scoped crawl; M1-style `M2_STATUS.md`.
+
+**Measured (team `test`):**
+- FAQ held-out **200 Q:** **recall@5 = 0.950** (190/200), **language_match = 1.0** → PRODUCT_SPEC gate green
+- Pair leave-one-out / recovery remains weaker when gold is ticket-specific (TD-M2-05)
+
+**Next:** M3 Commerce Grounding (BigCommerce / Global-E).
+
 ## 2026-08-02 (M2 status + retrieval benchmark)
 
 **Built:** `docs/M2_STATUS.md` (honest: gate not closed); `benchmark_retrieval` command for embed coverage + p50/p95 retrieve latency.
@@ -7,6 +17,7 @@
 **Clarified:** Embeddings live in **Postgres pgvector**, not Pinecone. M2 remaining: Curated UI, recall@5 eval, full corpus embed.
 
 ## 2026-08-02 (M2 embeddings + ResolutionPairs + retrieval stub)
+
 
 **Built:** Azure embedding adapter (`text-embedding-3-small`); Celery `knowledge.embed_chunks` / `embed_resolution_pairs`; `extract_resolution_pairs` from SUPPORT+resolving with confidence floor; hybrid `retrieve()` stub with precedence; management commands `embed_knowledge`, `extract_resolution_pairs`, `retrieve_knowledge`. Updated `M1_STATUS.md` with live Formex snapshot + PR link.
 

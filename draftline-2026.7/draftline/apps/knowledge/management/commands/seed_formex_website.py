@@ -31,7 +31,7 @@ class Command(BaseCommand):
             provider=Provider.WEBSITE,
             display_name=options["display_name"],
             defaults={
-                "config": {"seed_urls": FORMEX_FAQ_URLS, "max_pages": 30, "max_depth": 2},
+                "config": {"seed_urls": FORMEX_FAQ_URLS, "max_pages": 40, "max_depth": 3},
                 "status": ConnectionStatus.PENDING,
                 "health": {"seeded": True},
             },

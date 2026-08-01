@@ -33,6 +33,10 @@ class WebCrawlInputTests(TestCase):
         )
         self.assertTrue(payload["useCanonicalUrl"])
         self.assertTrue(payload["keepUrlFragment"])
+        # FAQ seeds must not open the whole origin (avoids PDP/legal dumps)
+        globs = [g["glob"] for g in payload["globs"]]
+        self.assertTrue(any("/faqs" in g for g in globs))
+        self.assertFalse(any(g.endswith("formexwatch.com/**") for g in globs))
 
 
 class ApifyClientCompatTests(TestCase):

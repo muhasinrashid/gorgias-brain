@@ -104,7 +104,7 @@ uv run manage.py seed_formex_website --team-slug muhasin --sync
 
 ## Decision
 
-**Proceed to M2** with M1 gate open. See [`M2_KICKOFF.md`](M2_KICKOFF.md).
+**Proceed to M2** with M1 gate open. See [`M2_KICKOFF.md`](M2_KICKOFF.md). **M2 closed 2026-08-02** — see [`M2_STATUS.md`](M2_STATUS.md); next is M3.
 
 M2 must assume:
 1. Prefer high-confidence SUPPORT + `is_resolving_reply` until TD-M1-01 closes.

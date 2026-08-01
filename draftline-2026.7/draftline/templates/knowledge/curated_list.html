@@ -1,0 +1,38 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 max-w-4xl">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-semibold">{% translate "Curated knowledge" %}</h1>
+      <p class="text-sm opacity-70 mt-1">{% translate "Approved Q&A outranks mined tickets in retrieval." %}</p>
+    </div>
+    <a class="btn btn-primary btn-sm" href="{% url 'knowledge:curated_create' request.team.slug %}">{% translate "Add" %}</a>
+  </div>
+
+  <div class="flex flex-wrap gap-2 mb-4">
+    <a class="btn btn-xs {% if not status %}btn-active{% else %}btn-ghost{% endif %}" href="?">{% translate "All" %}</a>
+    {% for value, label in statuses %}
+    <a class="btn btn-xs {% if status == value %}btn-active{% else %}btn-ghost{% endif %}" href="?status={{ value }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+
+  {% if items %}
+  <ul class="menu bg-base-200 rounded-box w-full">
+    {% for item in items %}
+    <li>
+      <a href="{% url 'knowledge:curated_detail' request.team.slug item.id %}" class="flex flex-col items-start gap-1 py-3">
+        <div class="flex gap-2 items-center w-full">
+          <span class="font-medium">{{ item.question|truncatechars:80 }}</span>
+          <span class="badge badge-sm">{{ item.status }}</span>
+        </div>
+        <span class="text-xs opacity-70 font-normal">{{ item.answer|truncatechars:100 }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="alert">{% translate "No curated items yet." %}</div>
+  {% endif %}
+</div>
+{% endblock %}

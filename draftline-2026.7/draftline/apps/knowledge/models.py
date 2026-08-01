@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.db import models
-from pgvector.django import VectorField
+from pgvector.django import HnswIndex, VectorField
 
 from apps.teams.models import BaseTeamModel
 from apps.utils.models import BaseModel
@@ -127,6 +127,13 @@ class Chunk(BaseTeamModel):
         unique_together = ("team", "source", "ordinal")
         indexes = [
             models.Index(fields=["team", "source"]),
+            HnswIndex(
+                name="knowledge_chunk_embedding_hnsw",
+                fields=["embedding"],
+                m=16,
+                ef_construction=64,
+                opclasses=["vector_cosine_ops"],
+            ),
         ]
         ordering = ["source_id", "ordinal"]
 
@@ -153,6 +160,13 @@ class ResolutionPair(BaseTeamModel):
         indexes = [
             models.Index(fields=["team", "intent"]),
             models.Index(fields=["team", "is_exemplar"]),
+            HnswIndex(
+                name="knowledge_rp_embedding_hnsw",
+                fields=["embedding"],
+                m=16,
+                ef_construction=64,
+                opclasses=["vector_cosine_ops"],
+            ),
         ]
 
     def __str__(self) -> str:
@@ -193,3 +207,30 @@ class CuratedKnowledge(BaseTeamModel):
 
     def __str__(self) -> str:
         return f"curated:{self.status}:{(self.question or '')[:40]}"
+
+
+class IntentNode(BaseTeamModel):
+    """Intent taxonomy — HC categories / macro leaves / NOT_SUPPORT branch."""
+
+    slug = models.SlugField(max_length=128)
+    label = models.CharField(max_length=255)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="children",
+    )
+    source = models.CharField(max_length=16, blank=True, default="seed")  # seed|hc|macro|manual
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ("team", "slug")
+        indexes = [
+            models.Index(fields=["team", "is_active"]),
+            models.Index(fields=["team", "parent"]),
+        ]
+        ordering = ["slug"]
+
+    def __str__(self) -> str:
+        return f"intent:{self.slug}"
