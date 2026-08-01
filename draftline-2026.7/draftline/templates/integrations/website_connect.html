@@ -1,0 +1,38 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 max-w-xl">
+  <h1 class="text-3xl font-semibold mb-2">{% translate "Connect website" %}</h1>
+  <p class="text-base-content/70 mb-6">
+    {% translate "Add seed URL(s). Draftline crawls them with the platform crawler and stores pages as knowledge sources. No Apify key needed from you." %}
+  </p>
+
+  {% if form_error %}
+  <div class="alert alert-error mb-4">{{ form_error }}</div>
+  {% endif %}
+
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+    <div>
+      <label class="label"><span class="label-text">{% translate "Display name" %}</span></label>
+      <input class="input input-bordered w-full" type="text" name="display_name" value="{{ display_name|default:'Website' }}">
+    </div>
+    <div>
+      <label class="label"><span class="label-text">{% translate "Seed URLs (one per line)" %}</span></label>
+      <textarea class="textarea textarea-bordered w-full h-40" name="seed_urls" placeholder="https://example.com/faqs/">{{ seed_urls }}</textarea>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="label"><span class="label-text">{% translate "Max depth" %}</span></label>
+        <input class="input input-bordered w-full" type="number" min="0" name="max_depth" value="{{ max_depth }}">
+      </div>
+      <div>
+        <label class="label"><span class="label-text">{% translate "Max pages" %}</span></label>
+        <input class="input input-bordered w-full" type="number" min="1" max="{{ hard_max_pages }}" name="max_pages" value="{{ max_pages }}">
+        <p class="text-xs opacity-60 mt-1">{% translate "Platform hard max" %}: {{ hard_max_pages }}</p>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">{% translate "Connect & crawl" %}</button>
+  </form>
+</div>
+{% endblock %}

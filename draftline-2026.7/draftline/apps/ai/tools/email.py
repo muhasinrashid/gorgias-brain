@@ -1,0 +1,24 @@
+from asgiref.sync import sync_to_async
+from django.conf import settings
+from django.core.mail import send_mail
+from pydantic_ai.toolsets import FunctionToolset
+
+
+async def send_email(email: str, subject: str, body: str) -> None:
+    """Send an email to a recipient.
+
+    Args:
+        email: The email address of the recipient.
+        subject: The subject of the email.
+        body: The body of the email.
+    """
+    await sync_to_async(send_mail)(
+        subject=subject,
+        message=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[email],
+        fail_silently=False,
+    )
+
+
+email_toolset = FunctionToolset(tools=[send_email])

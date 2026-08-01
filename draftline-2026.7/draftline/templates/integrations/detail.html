@@ -1,0 +1,193 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n team_tags %}
+{% block app %}
+<div class="px-4 max-w-3xl" id="connection-sync"
+     data-status-url="{% url 'integrations:status' request.team.slug connection.id %}"
+     data-poll="{{ sync_status.poll|yesno:'true,false' }}">
+  <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-3xl font-semibold mb-2">{{ connection.display_name }}</h1>
+      <div class="flex flex-wrap gap-2 items-center">
+        <span id="sync-chip" class="badge {% if sync_status.ready %}badge-success{% elif sync_status.failed %}badge-error{% else %}badge-warning{% endif %}">
+          {{ sync_status.chip }}
+        </span>
+        <span class="text-sm opacity-70">{{ connection.get_provider_display }}</span>
+      </div>
+    </div>
+    <a class="link text-sm" href="{% url 'integrations:list' request.team.slug %}">{% translate "All integrations" %}</a>
+  </div>
+
+  <div class="border border-base-300 rounded-lg p-5 mb-6">
+    <p class="text-lg font-medium mb-1" id="sync-phase">{{ sync_status.phase_label }}</p>
+    <p class="text-sm opacity-70 mb-4" id="sync-detail">{{ sync_status.detail }}</p>
+
+    <div id="sync-progress-wrap" class="mb-4 {% if sync_status.progress_mode == 'none' %}hidden{% endif %}">
+      {% if sync_status.progress_mode == 'indeterminate' %}
+      <progress id="sync-progress" class="progress progress-primary w-full"></progress>
+      {% else %}
+      <progress id="sync-progress" class="progress progress-primary w-full" value="{{ sync_status.progress_pct|default:0 }}" max="100"></progress>
+      {% endif %}
+    </div>
+
+    <div id="sync-error" class="{% if not sync_status.error_message or not sync_status.failed %}hidden{% endif %} alert alert-warning text-sm mb-4">
+      {{ sync_status.error_message }}
+    </div>
+
+    {% if sync_status.failed %}
+    <form method="post" action="{% url 'integrations:retry' request.team.slug connection.id %}" class="mb-2">
+      {% csrf_token %}
+      <button class="btn btn-primary btn-sm" type="submit">{% translate "Try again" %}</button>
+    </form>
+    {% endif %}
+
+    {% if sync_status.last_sync_at %}
+    <p class="text-xs opacity-60 mt-2">{% translate "Last synced" %}: <span id="sync-last">{{ sync_status.last_sync_at }}</span></p>
+    {% else %}
+    <p class="text-xs opacity-60 mt-2 hidden" id="sync-last-wrap">{% translate "Last synced" %}: <span id="sync-last"></span></p>
+    {% endif %}
+  </div>
+
+  <div class="flex flex-wrap gap-4 text-sm mb-8">
+    <a class="link" href="{% url 'knowledge:sources_home' request.team.slug %}">{% translate "Browse sources" %}</a>
+    <a class="link" href="{% url 'knowledge:corpus_report' request.team.slug %}">{% translate "Corpus Report" %}</a>
+    {% if connection.provider == "WEBSITE" %}
+    <a class="link" href="{% url 'knowledge:sources_list' request.team.slug 'web' %}">{% translate "Browse web pages" %}</a>
+    {% endif %}
+  </div>
+
+  {% if connection.provider == "GORGIAS" %}
+  <h2 class="font-semibold mb-3">{% translate "Recent activity" %}</h2>
+  {% if qualification_breakdown %}
+  <div class="flex flex-wrap gap-2 mb-4">
+    {% for q, c in qualification_breakdown %}
+    <span class="badge badge-outline">{{ q }}: {{ c }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if tickets %}
+  <div class="overflow-x-auto mb-8">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>{% translate "ID" %}</th>
+          <th>{% translate "Subject" %}</th>
+          <th>{% translate "Status" %}</th>
+          <th>{% translate "Qualification" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td>{{ t.external_id }}</td>
+          <td>{{ t.subject|truncatechars:60 }}</td>
+          <td>{{ t.status }}</td>
+          <td>{{ t.qualification }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="opacity-70 mb-8">{% translate "Tickets will appear here as they are imported." %}</p>
+  {% endif %}
+  {% endif %}
+
+  {% if request.user|is_admin_of:request.team %}
+  <details class="collapse collapse-arrow border border-base-300 rounded-lg">
+    <summary class="collapse-title text-sm font-medium">{% translate "Advanced" %}</summary>
+    <div class="collapse-content text-sm space-y-4">
+      <p class="opacity-70">{% translate "For setup and troubleshooting. Most teams never need this." %}</p>
+      {% if connection.provider == "GORGIAS" %}
+      <div>
+        <p class="font-medium mb-1">{% translate "Live updates webhook" %}</p>
+        <p class="opacity-70 mb-2">{% translate "Point a Gorgias HTTP Integration here for ticket created / updated / message added." %}</p>
+        <code class="block bg-base-200 p-3 rounded text-xs break-all">{{ webhook_url }}</code>
+      </div>
+      <form method="post" action="{% url 'integrations:backfill' request.team.slug connection.id %}" class="inline-block mr-2">
+        {% csrf_token %}
+        <button class="btn btn-outline btn-xs" type="submit">{% translate "Force refresh tickets" %}</button>
+      </form>
+      <form method="post" action="{% url 'integrations:sync_sources' request.team.slug connection.id %}" class="inline-block">
+        {% csrf_token %}
+        <button class="btn btn-outline btn-xs" type="submit">{% translate "Force refresh macros" %}</button>
+      </form>
+      {% elif connection.provider == "WEBSITE" %}
+      <form method="post" action="{% url 'integrations:sync_website' request.team.slug connection.id %}">
+        {% csrf_token %}
+        <button class="btn btn-outline btn-xs" type="submit">{% translate "Force re-crawl" %}</button>
+      </form>
+      {% endif %}
+    </div>
+  </details>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  const root = document.getElementById("connection-sync");
+  if (!root) return;
+  const url = root.dataset.statusUrl;
+  let polling = root.dataset.poll === "true";
+  const chip = document.getElementById("sync-chip");
+  const phase = document.getElementById("sync-phase");
+  const detail = document.getElementById("sync-detail");
+  const progress = document.getElementById("sync-progress");
+  const progressWrap = document.getElementById("sync-progress-wrap");
+  const errBox = document.getElementById("sync-error");
+  const last = document.getElementById("sync-last");
+  const lastWrap = document.getElementById("sync-last-wrap");
+
+  function applyChip(el, status) {
+    el.className = "badge";
+    if (status.ready) el.classList.add("badge-success");
+    else if (status.failed) el.classList.add("badge-error");
+    else el.classList.add("badge-warning");
+    el.textContent = status.chip;
+  }
+
+  async function tick() {
+    if (!polling) return;
+    try {
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) return;
+      const status = await res.json();
+      applyChip(chip, status);
+      phase.textContent = status.phase_label || "";
+      detail.textContent = status.detail || "";
+      if (status.progress_mode === "none") {
+        progressWrap.classList.add("hidden");
+      } else {
+        progressWrap.classList.remove("hidden");
+        if (status.progress_mode === "indeterminate") {
+          progress.removeAttribute("value");
+        } else {
+          progress.setAttribute("value", status.progress_pct || 0);
+          progress.setAttribute("max", "100");
+        }
+      }
+      if (status.error_message && status.failed) {
+        errBox.textContent = status.error_message;
+        errBox.classList.remove("hidden");
+      } else {
+        errBox.classList.add("hidden");
+      }
+      if (status.last_sync_at && last) {
+        last.textContent = status.last_sync_at;
+        if (lastWrap) lastWrap.classList.remove("hidden");
+      }
+      polling = !!status.poll;
+      if (!polling) {
+        window.setTimeout(function () { window.location.reload(); }, 800);
+      }
+    } catch (e) {
+      /* ignore transient poll errors */
+    }
+  }
+
+  if (polling) {
+    tick();
+    window.setInterval(tick, 3000);
+  }
+})();
+</script>
+{% endblock %}

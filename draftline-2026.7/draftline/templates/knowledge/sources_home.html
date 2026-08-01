@@ -1,0 +1,35 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 w-full">
+  <h1 class="text-3xl font-semibold mb-2">{% translate "Sources" %}</h1>
+  <p class="text-base-content/70 mb-8">{% translate "Browse Help Center, macros, web pages, and imported tickets." %}</p>
+
+  <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl">
+    <a class="block border border-base-300 rounded-lg p-5 hover:bg-base-200/40" href="{% url 'knowledge:sources_list' request.team.slug 'help-center' %}">
+      <div class="text-sm uppercase tracking-wide opacity-60 mb-1">{% translate "Help Center" %}</div>
+      <div class="text-3xl font-semibold">{{ counts.articles }}</div>
+      <div class="text-sm opacity-70 mt-1">{% translate "Articles" %}</div>
+    </a>
+    <a class="block border border-base-300 rounded-lg p-5 hover:bg-base-200/40" href="{% url 'knowledge:sources_list' request.team.slug 'macros' %}">
+      <div class="text-sm uppercase tracking-wide opacity-60 mb-1">{% translate "Macros" %}</div>
+      <div class="text-3xl font-semibold">{{ counts.macros }}</div>
+      <div class="text-sm opacity-70 mt-1">{% translate "Phrasing sources" %}</div>
+    </a>
+    <a class="block border border-base-300 rounded-lg p-5 hover:bg-base-200/40" href="{% url 'knowledge:sources_list' request.team.slug 'web' %}">
+      <div class="text-sm uppercase tracking-wide opacity-60 mb-1">{% translate "Web pages" %}</div>
+      <div class="text-3xl font-semibold">{{ counts.web_pages }}</div>
+      <div class="text-sm opacity-70 mt-1">{% translate "Crawled pages" %}</div>
+    </a>
+    <a class="block border border-base-300 rounded-lg p-5 hover:bg-base-200/40" href="{% url 'knowledge:tickets_browser' request.team.slug %}">
+      <div class="text-sm uppercase tracking-wide opacity-60 mb-1">{% translate "Tickets" %}</div>
+      <div class="text-3xl font-semibold">{{ counts.tickets }}</div>
+      <div class="text-sm opacity-70 mt-1">{{ counts.support_tickets }} {% translate "SUPPORT" %}</div>
+    </a>
+  </div>
+
+  <div class="mt-8">
+    <a class="link" href="{% url 'knowledge:corpus_report' request.team.slug %}">{% translate "Open Corpus Report" %}</a>
+  </div>
+</div>
+{% endblock %}

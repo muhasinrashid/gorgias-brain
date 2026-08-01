@@ -1,0 +1,65 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 max-w-2xl">
+  <h1 class="text-3xl font-semibold mb-2">{% translate "Platform crawler" %}</h1>
+  <p class="text-base-content/70 mb-6">
+    {% translate "Draftline-owned Apify account. Tenants never see these credentials. Paste your custom actor id when ready." %}
+  </p>
+
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+    <label class="flex items-center gap-2 cursor-pointer">
+      <input type="checkbox" name="enabled" class="checkbox" {% if settings_obj.enabled %}checked{% endif %}>
+      <span>{% translate "Crawler enabled" %}</span>
+    </label>
+
+    <div>
+      <label class="label"><span class="label-text">{% translate "Apify API key" %}</span></label>
+      {% if has_key %}
+      <p class="text-sm opacity-70 mb-1">{% translate "Current" %}: {{ masked_key }}</p>
+      {% endif %}
+      <input class="input input-bordered w-full" type="password" name="apify_api_key" placeholder="{% translate 'Leave blank to keep existing' %}" autocomplete="off">
+      <label class="flex items-center gap-2 mt-2 cursor-pointer">
+        <input type="checkbox" name="clear_api_key" class="checkbox checkbox-sm">
+        <span class="text-sm">{% translate "Clear stored API key" %}</span>
+      </label>
+    </div>
+
+    <div>
+      <label class="label"><span class="label-text">{% translate "Apify actor id" %}</span></label>
+      <input class="input input-bordered w-full" type="text" name="apify_actor" value="{{ settings_obj.apify_actor }}" placeholder="org~draftline-web-crawler">
+      <p class="text-xs opacity-60 mt-1">{% translate "Until your actor ships, you may temporarily use apify/website-content-crawler." %}</p>
+    </div>
+
+    <div class="grid grid-cols-3 gap-3">
+      <div>
+        <label class="label"><span class="label-text">{% translate "Default depth" %}</span></label>
+        <input class="input input-bordered w-full" type="number" min="0" name="default_max_depth" value="{{ settings_obj.default_max_depth }}">
+      </div>
+      <div>
+        <label class="label"><span class="label-text">{% translate "Default max pages" %}</span></label>
+        <input class="input input-bordered w-full" type="number" min="1" name="default_max_pages" value="{{ settings_obj.default_max_pages }}">
+      </div>
+      <div>
+        <label class="label"><span class="label-text">{% translate "Hard max pages" %}</span></label>
+        <input class="input input-bordered w-full" type="number" min="1" name="hard_max_pages" value="{{ settings_obj.hard_max_pages }}">
+      </div>
+    </div>
+
+    {% if settings_obj.last_error %}
+    <div class="alert alert-warning text-sm">{{ settings_obj.last_error }}</div>
+    {% endif %}
+    {% if settings_obj.last_health_check_at %}
+    <p class="text-xs opacity-60">{% translate "Last health check" %}: {{ settings_obj.last_health_check_at }}</p>
+    {% endif %}
+
+    <button class="btn btn-primary" type="submit">{% translate "Save" %}</button>
+  </form>
+
+  <form method="post" action="{% url 'knowledge_platform:crawler_health' %}" class="mt-3">
+    {% csrf_token %}
+    <button class="btn btn-outline" type="submit">{% translate "Test Apify credentials" %}</button>
+  </form>
+</div>
+{% endblock %}

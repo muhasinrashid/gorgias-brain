@@ -1,0 +1,59 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 w-full">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div>
+      <a class="link text-sm" href="{% url 'knowledge:sources_home' request.team.slug %}">{% translate "Sources" %}</a>
+      <h1 class="text-3xl font-semibold">{% translate "Tickets" %}</h1>
+    </div>
+    <form method="get" class="flex flex-wrap gap-2 items-center">
+      <input class="input input-bordered input-sm w-56" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Search subject / id…' %}">
+      <select class="select select-bordered select-sm" name="qualification">
+        <option value="">{% translate "All qualifications" %}</option>
+        {% for value, label in qualifications %}
+        <option value="{{ value }}" {% if qualification == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm" type="submit">{% translate "Filter" %}</button>
+    </form>
+  </div>
+
+  {% if breakdown %}
+  <div class="flex flex-wrap gap-2 mb-4">
+    {% for q, c in breakdown %}
+    <span class="badge badge-outline">{{ q }}: {{ c }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if tickets %}
+  <div class="overflow-x-auto">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>{% translate "External ID" %}</th>
+          <th>{% translate "Subject" %}</th>
+          <th>{% translate "Channel" %}</th>
+          <th>{% translate "Qualification" %}</th>
+          <th>{% translate "Status" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td><a class="link" href="{% url 'knowledge:ticket_detail' request.team.slug t.id %}">{{ t.external_id }}</a></td>
+          <td>{{ t.subject|truncatechars:70 }}</td>
+          <td>{{ t.channel }}</td>
+          <td>{{ t.qualification }}</td>
+          <td>{{ t.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="opacity-70">{% translate "No tickets match." %}</p>
+  {% endif %}
+</div>
+{% endblock %}

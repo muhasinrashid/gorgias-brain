@@ -1,0 +1,23 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 max-w-xl">
+  <h1 class="text-3xl font-semibold mb-2">{% translate "Agent settings" %}</h1>
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+    <label class="label cursor-pointer justify-start gap-3">
+      <input type="checkbox" name="shadow_mode" class="toggle" {% if agent.shadow_mode %}checked{% endif %} />
+      <span>{% translate "Shadow mode (generate but do not deliver)" %}</span>
+    </label>
+    <label class="label cursor-pointer justify-start gap-3">
+      <input type="checkbox" name="kill_switch" class="toggle toggle-error" {% if agent.kill_switch %}checked{% endif %} />
+      <span>{% translate "Kill switch (stop all generation)" %}</span>
+    </label>
+    <label class="label cursor-pointer justify-start gap-3">
+      <input type="checkbox" name="activate" value="1" class="checkbox" {% if agent.status == 'ACTIVE' %}checked{% endif %} />
+      <span>{% translate "Mark agent active" %}</span>
+    </label>
+    <button class="btn btn-primary" type="submit">{% translate "Save settings" %}</button>
+  </form>
+</div>
+{% endblock %}

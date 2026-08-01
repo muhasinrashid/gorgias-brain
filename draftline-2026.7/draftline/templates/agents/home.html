@@ -1,0 +1,44 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 w-full">
+  <h1 class="text-3xl font-semibold mb-2">{{ agent.name }}</h1>
+  <p class="text-base-content/70 mb-8">{% translate "Connect a source, configure instructions, then watch the first draft appear." %}</p>
+
+  <div class="grid gap-4 max-w-2xl">
+    <div class="flex items-start gap-3">
+      <span class="badge {% if checklist.entitlement_active %}badge-success{% else %}badge-warning{% endif %}">1</span>
+      <div>
+        <div class="font-medium">{% translate "Plan active" %}</div>
+        <div class="text-sm opacity-70">{{ entitlement.plan_code }} — {{ entitlement.interactions_used }}/{{ entitlement.interactions_included }} interactions</div>
+      </div>
+    </div>
+    <div class="flex items-start gap-3">
+      <span class="badge {% if checklist.has_connection %}badge-success{% else %}badge-ghost{% endif %}">2</span>
+      <div>
+        <div class="font-medium">{% translate "Connect Gorgias" %}</div>
+        <div class="text-sm opacity-70 mb-2">{% translate "Import tickets, macros, and help center." %}</div>
+        {% if not checklist.has_connection %}
+        <a class="btn btn-sm btn-primary" href="{% url 'integrations:gorgias_connect' request.team.slug %}">{% translate "Connect" %}</a>
+        {% else %}
+        <a class="link" href="{% url 'integrations:list' request.team.slug %}">{% translate "View integrations" %}</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="flex items-start gap-3">
+      <span class="badge {% if checklist.agent_configured %}badge-success{% else %}badge-ghost{% endif %}">3</span>
+      <div>
+        <div class="font-medium">{% translate "Configure instructions" %}</div>
+        <a class="link text-sm" href="{% url 'agents:instructions' request.team.slug %}">{% translate "Edit instructions" %}</a>
+      </div>
+    </div>
+    <div class="flex items-start gap-3">
+      <span class="badge badge-ghost">4</span>
+      <div>
+        <div class="font-medium">{% translate "See the first draft" %}</div>
+        <div class="text-sm opacity-70">{% translate "Shadow mode is on by default — drafts are stored, not delivered." %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
