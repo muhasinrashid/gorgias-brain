@@ -26,6 +26,8 @@ CuratedKnowledge > Help Center / Web > ResolutionPair (recent, high quality)
 | 7 | Curated Knowledge UI — DRAFT → APPROVED → RETIRED | Next |
 | 8 | Eval harness — held-out 200 questions; recall@5 | Next |
 
+See also [`M2_STATUS.md`](M2_STATUS.md) for the live snapshot and how to test embeddings / latency.
+
 ## Commands
 
 ```bash
@@ -41,6 +43,9 @@ uv run manage.py embed_knowledge --team-slug test --chunks --pairs --sync --limi
 
 # Smoke retrieval
 uv run manage.py retrieve_knowledge --team-slug test --query "return policy"
+
+# Latency + coverage
+uv run manage.py benchmark_retrieval --team-slug test --query "return policy" --runs 5
 ```
 
 ## Constraints while M1 debt is open
