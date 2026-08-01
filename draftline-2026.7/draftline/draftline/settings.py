@@ -495,6 +495,8 @@ CELERY_TASK_ROUTES = {
     "tickets.process_gorgias_webhook": {"queue": "sync"},
     "knowledge.ingest_gorgias_sources": {"queue": "sync"},
     "knowledge.ingest_website": {"queue": "sync"},
+    "knowledge.embed_chunks": {"queue": "sync"},
+    "knowledge.embed_resolution_pairs": {"queue": "sync"},
     "drafting.*": {"queue": "drafting"},
     "sync.*": {"queue": "sync"},
     "deltas.*": {"queue": "deltas"},

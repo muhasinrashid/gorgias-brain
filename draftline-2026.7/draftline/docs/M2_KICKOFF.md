@@ -1,7 +1,8 @@
 # M2 Kickoff — Knowledge Layer
 
-**Started:** 2026-08-01  
-**Depends on:** M0 complete; M1 advanced with [open debt](M1_STATUS.md) (gate deferred).
+**Started:** 2026-08-01 · **In progress:** 2026-08-02  
+**Depends on:** M0 complete; M1 advanced with [open debt](M1_STATUS.md) (gate deferred).  
+**Live team slug:** `test` (Formex)
 
 ## Goal
 
@@ -12,33 +13,42 @@ CuratedKnowledge > Help Center / Web > ResolutionPair (recent, high quality)
                  > Macro (phrasing only) > Files
 ```
 
-## First build slices (order)
+## Build slices
 
-1. **Infra** — Postgres image with `pgvector`; `CREATE EXTENSION vector`; Django vector field on `Chunk`.
-2. **Models** — `Chunk`, `ResolutionPair`, `CuratedKnowledge` (+ migrations), team-scoped.
-3. **Chunking** — text splitters for `Source` WEB_PAGE / HELP_CENTER / MACRO (macros → phrasing metadata, not facts); ticket resolving pairs separately.
-4. **Embeddings** — Azure OpenAI `text-embedding-3-small` (1536-d) behind an adapter; Celery `knowledge.embed_chunks`.
-5. **ResolutionPair extraction** — from SUPPORT tickets with `is_resolving_reply`; skip autoresponders.
-6. **Retrieval stub** — hybrid lexical + vector, team-scoped, precedence weights; citation returns `source_id` + offsets.
-7. **Curated Knowledge UI** — DRAFT → APPROVED (de-id required) → RETIRED.
-8. **Eval harness** — held-out 200 questions; recall@5 gate.
+| # | Slice | Status |
+|---|--------|--------|
+| 1 | Infra — `pgvector/pgvector:pg17`, extension `vector` | Done |
+| 2 | Models — `Chunk`, `ResolutionPair`, `CuratedKnowledge` | Done |
+| 3 | Chunking — `chunk_sources` for WEB / HC / MACRO | Done |
+| 4 | Embeddings — Azure `text-embedding-3-small`; `knowledge.embed_chunks` / `embed_resolution_pairs` | **Done (2026-08-02)** |
+| 5 | ResolutionPair extraction — SUPPORT + resolving reply; confidence floor | **Done (2026-08-02)** |
+| 6 | Retrieval stub — hybrid lexical + vector, precedence, citations | **Done (2026-08-02)** |
+| 7 | Curated Knowledge UI — DRAFT → APPROVED → RETIRED | Next |
+| 8 | Eval harness — held-out 200 questions; recall@5 | Next |
+
+## Commands
+
+```bash
+cd draftline-2026.7/draftline
+# Chunk active sources
+uv run manage.py chunk_sources --team-slug test
+
+# Resolution pairs (prefers confidence ≥0.8 or null + resolving reply)
+uv run manage.py extract_resolution_pairs --team-slug test --limit 500
+
+# Embed (requires Azure OpenAI env; --sync runs inline)
+uv run manage.py embed_knowledge --team-slug test --chunks --pairs --sync --limit 100
+
+# Smoke retrieval
+uv run manage.py retrieve_knowledge --team-slug test --query "return policy"
+```
 
 ## Constraints while M1 debt is open
 
-- Do not treat all SUPPORT as clean until TD-M1-01; filter `qualification_confidence` and resolving-reply.
-- Do not block M2 scaffolding on Apify; web chunks land when TD-M1-02 closes.
+- Prefer high-confidence SUPPORT + `is_resolving_reply` (TD-M1-01 still open).
+- Web pages are available (~32); macros land after Gorgias ticket pass auto-chains.
 - Never embed customer-send paths; knowledge is for drafting only (M4).
 
-## Infra note (local)
+## Done when (PRODUCT_SPEC)
 
-`docker-compose.yml` uses `pgvector/pgvector:pg17`. If you already had a plain `postgres:17` volume, recreate once:
-
-```bash
-docker compose down
-# WARNING: destroys local DB data
-docker volume rm draftline_postgres_data   # name may vary: docker volume ls | grep postgres
-docker compose up -d
-uv run manage.py migrate
-```
-
-Or keep data and install extension only if the image already supports it (pgvector image required).
+recall@5 ≥ 0.85 on 200 held-out · citations resolve · language match ≥90% · precedence demonstrable.

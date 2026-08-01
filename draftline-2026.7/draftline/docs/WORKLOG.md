@@ -1,5 +1,13 @@
 # Worklog
 
+## 2026-08-02 (M2 embeddings + ResolutionPairs + retrieval stub)
+
+**Built:** Azure embedding adapter (`text-embedding-3-small`); Celery `knowledge.embed_chunks` / `embed_resolution_pairs`; `extract_resolution_pairs` from SUPPORT+resolving with confidence floor; hybrid `retrieve()` stub with precedence; management commands `embed_knowledge`, `extract_resolution_pairs`, `retrieve_knowledge`. Updated `M1_STATUS.md` with live Formex snapshot + PR link.
+
+**Verified on team `test`:** 141 web chunks; 197 ResolutionPairs; embedded 40 chunks + 40 pairs; `retrieve_knowledge "return policy"` returned the Formex returns FAQ chunk with citation offsets.
+
+**Next:** Embed remaining corpus; Curated Knowledge UI; recall@5 harness.
+
 ## 2026-08-02 (M1 sync progress UX)
 
 **Built:** Customer-facing Integrations status card (Setting up / Ready / Needs attention) with live poll; Gorgias phases Import tickets → Sync macros → Up to date; website determinate pages done/target; auto-chain `ingest_gorgias_sources` after ticket backfill; Advanced disclosure for webhook + force refresh; friendly error copy for 429/DNS.
