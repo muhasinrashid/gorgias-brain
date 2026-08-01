@@ -1,0 +1,30 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 w-full max-w-4xl">
+  <a class="link text-sm" href="{% url 'knowledge:tickets_browser' request.team.slug %}">{% translate "Tickets" %}</a>
+  <h1 class="text-2xl font-semibold mb-2">{{ ticket.subject }}</h1>
+  <div class="flex flex-wrap gap-2 mb-6 text-sm">
+    <span class="badge">{{ ticket.qualification }}</span>
+    <span class="badge badge-ghost">{{ ticket.status }}</span>
+    <span class="badge badge-ghost">{{ ticket.channel }}</span>
+    <span class="opacity-70">#{{ ticket.external_id }}</span>
+  </div>
+
+  <div class="space-y-4">
+    {% for m in messages %}
+    <div class="border border-base-300 rounded-lg p-4 {% if m.is_resolving_reply %}border-success{% endif %}">
+      <div class="flex flex-wrap gap-2 text-xs mb-2 opacity-70">
+        <span>{{ m.author_type }} · {{ m.direction }}</span>
+        {% if m.is_autoresponder %}<span class="badge badge-warning badge-sm">{% translate "Autoresponder" %}</span>{% endif %}
+        {% if m.is_resolving_reply %}<span class="badge badge-success badge-sm">{% translate "Resolving" %}</span>{% endif %}
+        {% if m.sent_at %}<span>{{ m.sent_at }}</span>{% endif %}
+      </div>
+      <div class="whitespace-pre-wrap text-sm">{{ m.normalised_text|default:m.raw_body_text|truncatechars:2000 }}</div>
+    </div>
+    {% empty %}
+    <p class="opacity-70">{% translate "No messages." %}</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 w-full max-w-4xl">
+  <a class="link text-sm" href="{% url 'knowledge:sources_home' request.team.slug %}">{% translate "Sources" %}</a>
+  <h1 class="text-3xl font-semibold mb-2">{{ source.title }}</h1>
+  <div class="flex flex-wrap gap-2 mb-6">
+    <span class="badge">{{ source.source_type }}</span>
+    {% if source.usage_count %}<span class="badge badge-ghost">{% translate "Usage" %}: {{ source.usage_count }}</span>{% endif %}
+    {% if source.language %}<span class="badge badge-ghost">{{ source.language }}</span>{% endif %}
+  </div>
+  {% if source.url %}
+  <p class="mb-4"><a class="link" href="{{ source.url }}" target="_blank" rel="noopener">{{ source.url }}</a></p>
+  {% endif %}
+
+  {% if citations %}
+  <h2 class="text-lg font-semibold mb-2">{% translate "Chunk citations" %}</h2>
+  <div class="overflow-x-auto mb-6">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>{% translate "Offsets" %}</th>
+          <th>{% translate "Resolves" %}</th>
+          <th>{% translate "Preview" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in citations %}
+        <tr>
+          <td>{{ row.chunk.ordinal }}</td>
+          <td class="font-mono text-xs">{{ row.chunk.char_offset_start }}–{{ row.chunk.char_offset_end }}</td>
+          <td>{% if row.resolves %}<span class="badge badge-success">ok</span>{% else %}<span class="badge badge-warning" title="{{ row.message }}">check</span>{% endif %}</td>
+          <td class="text-xs max-w-md truncate">{{ row.chunk.text|truncatechars:120 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <pre class="bg-base-200 p-4 rounded text-sm whitespace-pre-wrap overflow-auto max-h-[70vh]">{{ source.normalised_content|default:source.raw_content }}</pre>
+</div>
+{% endblock %}

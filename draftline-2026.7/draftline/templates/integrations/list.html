@@ -1,0 +1,34 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-semibold">{% translate "Integrations" %}</h1>
+    <div class="flex gap-2">
+      <a class="btn btn-outline btn-sm" href="{% url 'integrations:website_connect' request.team.slug %}">{% translate "Add website" %}</a>
+      <a class="btn btn-primary btn-sm" href="{% url 'integrations:gorgias_connect' request.team.slug %}">{% translate "Add Gorgias" %}</a>
+    </div>
+  </div>
+  {% if connection_rows %}
+  <ul class="menu bg-base-200 rounded-box w-full max-w-2xl">
+    {% for row in connection_rows %}
+    <li>
+      <a href="{% url 'integrations:detail' request.team.slug row.connection.id %}" class="flex flex-col items-start gap-1 py-3">
+        <div class="flex w-full items-center gap-2">
+          <span class="font-medium">{{ row.connection.display_name|default:row.connection.provider }}</span>
+          <span class="badge badge-sm {% if row.sync_status.ready %}badge-success{% elif row.sync_status.failed %}badge-error{% else %}badge-warning{% endif %}">
+            {{ row.sync_status.chip }}
+          </span>
+        </div>
+        <span class="text-xs opacity-70 font-normal">
+          {{ row.sync_status.phase_label }}{% if row.sync_status.detail %} · {{ row.sync_status.detail }}{% endif %}
+        </span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="alert">{% translate "No integrations yet. Connect Gorgias or a website to start." %}</div>
+  {% endif %}
+</div>
+{% endblock %}

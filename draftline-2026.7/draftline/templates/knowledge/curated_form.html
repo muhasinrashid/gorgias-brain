@@ -1,0 +1,30 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 max-w-xl">
+  <h1 class="text-3xl font-semibold mb-6">{% if item %}{% translate "Edit curated knowledge" %}{% else %}{% translate "Add curated knowledge" %}{% endif %}</h1>
+  <form method="post" action="{{ form_action }}" class="space-y-4">
+    {% csrf_token %}
+    <div>
+      <label class="label"><span class="label-text">{% translate "Question" %}</span></label>
+      <textarea class="textarea textarea-bordered w-full" name="question" rows="3" required>{{ question }}</textarea>
+    </div>
+    <div>
+      <label class="label"><span class="label-text">{% translate "Answer" %}</span></label>
+      <textarea class="textarea textarea-bordered w-full" name="answer" rows="6" required>{{ answer }}</textarea>
+      <p class="text-xs opacity-60 mt-1">{% translate "Personal data is scrubbed on save; you must de-identify before approve." %}</p>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="label"><span class="label-text">{% translate "Intent" %}</span></label>
+        <input class="input input-bordered w-full" type="text" name="intent" value="{{ intent }}">
+      </div>
+      <div>
+        <label class="label"><span class="label-text">{% translate "Language" %}</span></label>
+        <input class="input input-bordered w-full" type="text" name="language" value="{{ language }}">
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">{% translate "Save draft" %}</button>
+  </form>
+</div>
+{% endblock %}

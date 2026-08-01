@@ -1,0 +1,73 @@
+{% load i18n %}
+{% load team_tags %}
+{% if request.team %}
+  <li class="menu-title"><span>{% translate "Agent" %}</span></li>
+  <li>
+    <a href="{% url 'agents:home' request.team.slug %}" {% if active_tab == 'agent_home' %}class="menu-active"{% endif %}>
+      <i class="fa fa-house h-4 w-4"></i>
+      {% translate "Home" %}
+    </a>
+  </li>
+  <li>
+    <a href="{% url 'agents:activity' request.team.slug %}" {% if active_tab == 'agent_activity' %}class="menu-active"{% endif %}>
+      <i class="fa fa-list h-4 w-4"></i>
+      {% translate "Activity" %}
+    </a>
+  </li>
+  <li>
+    <a href="{% url 'agents:reports' request.team.slug %}" {% if active_tab == 'agent_reports' %}class="menu-active"{% endif %}>
+      <i class="fa fa-chart-line h-4 w-4"></i>
+      {% translate "Reports" %}
+    </a>
+  </li>
+  <li>
+    <a href="{% url 'agents:instructions' request.team.slug %}" {% if active_tab == 'agent_instructions' %}class="menu-active"{% endif %}>
+      <i class="fa fa-scroll h-4 w-4"></i>
+      {% translate "Instructions" %}
+    </a>
+  </li>
+  <li>
+    <a href="{% url 'agents:settings' request.team.slug %}" {% if active_tab == 'agent_settings' %}class="menu-active"{% endif %}>
+      <i class="fa fa-sliders h-4 w-4"></i>
+      {% translate "Settings" %}
+    </a>
+  </li>
+  <li>
+    <a href="{% url 'integrations:list' request.team.slug %}" {% if active_tab == 'integrations' %}class="menu-active"{% endif %}>
+      <i class="fa fa-plug h-4 w-4"></i>
+      {% translate "Integrations" %}
+    </a>
+  </li>
+  <li>
+    <a href="{% url 'knowledge:sources_home' request.team.slug %}" {% if active_tab == 'sources' %}class="menu-active"{% endif %}>
+      <i class="fa fa-book h-4 w-4"></i>
+      {% translate "Sources" %}
+    </a>
+  </li>
+  <li>
+    <a href="{% url 'knowledge:corpus_report' request.team.slug %}" {% if active_tab == 'corpus_report' %}class="menu-active"{% endif %}>
+      <i class="fa fa-chart-pie h-4 w-4"></i>
+      {% translate "Corpus Report" %}
+    </a>
+  </li>
+  <li>
+    <a href="{% url 'knowledge:curated_list' request.team.slug %}" {% if active_tab == 'curated' %}class="menu-active"{% endif %}>
+      <i class="fa fa-stamp h-4 w-4"></i>
+      {% translate "Curated" %}
+    </a>
+  </li>
+  {% if request.user|is_admin_of:request.team %}
+  <li>
+    <a href="{% url 'subscriptions_team:subscription_demo' request.team.slug %}" {% if active_tab == 'subscription_demo' %}class="menu-active"{% endif %}>
+      <i class="fa fa-desktop h-4 w-4"></i>
+      {% translate "Subscription Demo" %}
+    </a>
+  </li>
+  <li>
+    <a href="{% url 'subscriptions_team:subscription_details' request.team.slug %}" {% if active_tab == 'subscription' %}class="menu-active"{% endif %}>
+      <i class="fa fa-repeat h-4 w-4"></i>
+      {% translate "Subscription" %}
+    </a>
+  </li>
+  {% endif %}
+{% endif %}

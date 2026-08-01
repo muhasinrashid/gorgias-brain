@@ -1,0 +1,138 @@
+include custom.mk
+
+setup-env:
+	@[ ! -f ./.env ] && cp ./.env.example ./.env || echo ".env file already exists."
+
+start: ## Start the docker containers
+	@echo "Starting the docker containers"
+	@docker compose up
+
+stop: ## Stop Containers
+	@docker compose down
+
+restart: stop start ## Restart Containers
+
+start-bg:  ## Run containers in the background
+	@docker compose up -d
+
+dev: ## Start Django, npm dev server, and the Celery worker
+	@./scripts/dev.sh
+
+dev-no-celery: ## Start Django and npm dev servers only
+	@RUN_CELERY=0 ./scripts/dev.sh
+
+django: ## Run Django dev server
+	@uv run manage.py runserver
+
+celery: ## Start Celery worker (all Draftline queues) and celery beat
+	@uv run celery -A draftline worker -l INFO --beat -Q celery,backfill,sync,drafting,deltas,maintenance --concurrency=4
+
+manage: ## Run any manage.py command. E.g. `make manage ARGS='createsuperuser'`
+	@uv run manage.py ${ARGS}
+
+migrations: ## Create DB migrations in the container
+	@uv run manage.py makemigrations
+
+migrate: ## Run DB migrations in the container
+	@echo "Waiting for database to be ready..."
+	@until docker compose exec db pg_isready -d draftline -U postgres >/dev/null 2>&1; do echo "Database not ready, waiting..."; sleep 2; done
+	@echo "Database is ready, running migrations..."
+	@uv run manage.py migrate
+
+translations:  ## Rebuild translation files
+	@uv run manage.py makemessages --all --ignore node_modules --ignore venv --ignore .venv
+	@uv run manage.py makemessages -d djangojs --all --ignore node_modules --ignore venv --ignore .venv
+	@uv run manage.py compilemessages --ignore venv --ignore .venv
+
+shell: ## Get a Django shell
+	@uv run manage.py shell
+
+dbshell: ## Get a Database shell
+	@docker compose exec db psql -U postgres draftline
+
+test: ## Run Django tests
+	@uv run manage.py test ${ARGS}
+
+init: setup-env start-bg migrations migrate npm-install-all  ## Quickly get up and running (start containers and bootstrap DB)
+	@echo ""
+	@echo "✅ Project setup complete! Run 'make dev' to start the app."
+
+uv: ## Run a uv command
+	@uv $(filter-out $@,$(MAKECMDGOALS))
+
+uv-sync: ## Sync dependencies
+	@uv sync --frozen
+
+ruff-format: ## Runs ruff formatter on the codebase
+	@uv run ruff format .
+
+ruff-lint:  ## Runs ruff linter on the codebase
+	@uv run ruff check --fix .
+
+ruff: ruff-format ruff-lint ## Formatting and linting using Ruff
+
+npm-install-all: ## Runs npm install
+	@npm install
+
+npm-install: ## Runs npm install (optionally accepting package names)
+	@npm install $(filter-out $@,$(MAKECMDGOALS))
+
+npm-uninstall: ## Runs npm uninstall (takes package name(s))
+	@npm uninstall $(filter-out $@,$(MAKECMDGOALS))
+
+npm-build: ## Runs npm build (for production assets)
+	@npm run build
+
+npm-dev: ## Runs npm dev
+	@npm run dev
+
+npm-type-check: ## Runs the type checker on the front end TypeScript code
+	@npm run type-check
+
+upgrade: migrations migrate npm-install npm-dev  ## Run after a Pegasus upgrade to update requirements, migrate the database, and rebuild the front end
+
+build-api-client:  ## Update the JavaScript API client code.
+	@cp ./api-client/package.json ./package.json.api-client
+	@rm -rf ./api-client
+	@mkdir -p ./api-client
+	@mv ./package.json.api-client ./api-client/package.json
+	@docker run --rm --network host \
+		-v ./api-client:/local \
+		--user $(MY_UID):$(MY_GID) \
+		openapitools/openapi-generator-cli:v7.9.0 generate \
+		-i http://localhost:8000/api/schema/ \
+		-g typescript-fetch \
+		-o /local/
+
+gcp-build:  ## Build your docker container for Google Cloud
+	@docker build -t ${IMAGE_URL} . -f Dockerfile.web --platform linux/amd64
+
+gcp-push:  ## Push your docker container for Google Cloud
+	@docker push ${IMAGE_URL}
+
+gcp-deploy:  ## Deploy the latest docker container to Google Cloud
+	@gcloud run deploy draftline-web \
+	--region ${REGION} \
+	--update-env-vars DJANGO_SETTINGS_MODULE=draftline.settings_production \
+	--image ${IMAGE_URL} \
+	--set-cloudsql-instances ${DATABASE_ADDRESS} \
+	--network ${REDIS_NETWORK} \
+	--set-secrets APPLICATION_SETTINGS=application_settings:latest \
+	--service-account ${SERVICE_ACCOUNT} \
+	--allow-unauthenticated
+
+gcp-full-deploy: gcp-build gcp-push gcp-deploy  ## Build, push, and deploy the latest code to Google Cloud
+
+gcp-sql-shell:  ## Get a Google Cloud SQL shell
+	gcloud sql connect ${DATABASE_INSTANCE_NAME} --user=${DATABASE_USER} --database=${DATABASE_NAME}
+
+.PHONY: help
+.DEFAULT_GOAL := help
+
+help:
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+# catch-all for any undefined targets - this prevents error messages
+# when running things like make npm-install <package>
+%:
+	@:

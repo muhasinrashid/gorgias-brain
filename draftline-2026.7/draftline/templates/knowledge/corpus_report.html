@@ -1,0 +1,106 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 w-full max-w-5xl">
+  <h1 class="text-3xl font-semibold mb-2">{% translate "Corpus Report" %}</h1>
+  <p class="text-sm opacity-60 mb-8">{% translate "Generated" %}: {{ report.generated_at }}</p>
+
+  <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+    <div class="border border-base-300 rounded-lg p-4">
+      <div class="text-xs uppercase opacity-60">{% translate "Tickets" %}</div>
+      <div class="text-3xl font-semibold">{{ report.ticket_count }}</div>
+    </div>
+    <div class="border border-base-300 rounded-lg p-4">
+      <div class="text-xs uppercase opacity-60">{% translate "SUPPORT" %}</div>
+      <div class="text-3xl font-semibold">{{ report.support_count }}</div>
+    </div>
+    <div class="border border-base-300 rounded-lg p-4">
+      <div class="text-xs uppercase opacity-60">{% translate "Messages" %}</div>
+      <div class="text-3xl font-semibold">{{ report.message_count }}</div>
+    </div>
+    <div class="border border-base-300 rounded-lg p-4">
+      <div class="text-xs uppercase opacity-60">{% translate "Avg thread" %}</div>
+      <div class="text-3xl font-semibold">{{ report.avg_thread_length }}</div>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-8 mb-10">
+    <div>
+      <h2 class="font-semibold mb-3">{% translate "Qualification" %}</h2>
+      <ul class="space-y-1 text-sm">
+        {% for row in report.qualification %}
+        <li class="flex justify-between gap-4 border-b border-base-200 py-1">
+          <span>{{ row.qualification }}</span><span>{{ row.c }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div>
+      <h2 class="font-semibold mb-3">{% translate "Channels" %}</h2>
+      <ul class="space-y-1 text-sm">
+        {% for row in report.channels %}
+        <li class="flex justify-between gap-4 border-b border-base-200 py-1">
+          <span>{{ row.channel|default:"—" }}</span><span>{{ row.c }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-8 mb-10">
+    <div>
+      <h2 class="font-semibold mb-3">{% translate "Quality signals" %}</h2>
+      <ul class="text-sm space-y-2">
+        <li>{% translate "Autoresponder rate (agent msgs)" %}: {{ report.autoresponder_rate }}</li>
+        <li>{% translate "Resolving replies" %}: {{ report.resolving_reply_count }}</li>
+        <li>{% translate "Macros" %}: {{ report.macro_count }} ({{ report.macros_unused_or_never }} unused/never)</li>
+        <li>{% translate "Help Center articles" %}: {{ report.help_center_count }}</li>
+        <li>{% translate "Web pages" %}: {{ report.web_page_count }}</li>
+      </ul>
+    </div>
+    <div>
+      <h2 class="font-semibold mb-3">{% translate "Qualifier versions" %}</h2>
+      <ul class="space-y-1 text-sm">
+        {% for row in report.qualifier_versions %}
+        <li class="flex justify-between gap-4 border-b border-base-200 py-1">
+          <span>{{ row.qualifier_version|default:"—" }}</span><span>{{ row.c }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="mb-10">
+    <h2 class="font-semibold mb-3">{% translate "Macro usage (top 20)" %}</h2>
+    {% if report.macro_usage_top20 %}
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <thead><tr><th>{% translate "Title" %}</th><th>{% translate "Usage" %}</th></tr></thead>
+        <tbody>
+          {% for m in report.macro_usage_top20 %}
+          <tr><td>{{ m.title|truncatechars:80 }}</td><td>{{ m.usage_count }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="opacity-70 text-sm">{% translate "Sync macros from the Gorgias connection to populate this." %}</p>
+    {% endif %}
+  </div>
+
+  <div>
+    <h2 class="font-semibold mb-3">{% translate "Weekly volume" %}</h2>
+    {% if report.weekly_volume %}
+    <ul class="text-sm space-y-1 max-h-64 overflow-auto">
+      {% for row in report.weekly_volume %}
+      <li class="flex justify-between gap-4 border-b border-base-200 py-1">
+        <span>{{ row.week }}</span><span>{{ row.count }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="opacity-70 text-sm">{% translate "No dated tickets." %}</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

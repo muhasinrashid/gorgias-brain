@@ -1,0 +1,45 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n team_tags %}
+{% block app %}
+<div class="px-4 max-w-3xl">
+  <div class="flex flex-wrap items-center gap-2 mb-4">
+    <span class="badge">{{ item.status }}</span>
+    {% if item.is_deidentified %}<span class="badge badge-success">{% translate "De-identified" %}</span>{% else %}<span class="badge badge-warning">{% translate "Needs de-id" %}</span>{% endif %}
+    {% if item.language %}<span class="badge badge-ghost">{{ item.language }}</span>{% endif %}
+    {% if item.intent %}<span class="badge badge-ghost">{{ item.intent }}</span>{% endif %}
+  </div>
+  <h1 class="text-2xl font-semibold mb-2">{{ item.question }}</h1>
+  <div class="prose max-w-none mb-6 whitespace-pre-wrap">{{ item.answer }}</div>
+
+  <div class="text-sm opacity-70 mb-6 space-y-1">
+    {% if item.created_from_delta %}
+    <div><span class="font-medium">{% translate "Provenance" %}:</span> {{ item.created_from_delta }}</div>
+    {% endif %}
+    {% if item.source_ticket_ids %}
+    <div><span class="font-medium">{% translate "Source tickets" %}:</span> {{ item.source_ticket_ids|join:", " }}</div>
+    {% endif %}
+    {% if item.approved_at %}
+    <div><span class="font-medium">{% translate "Approved" %}:</span> {{ item.approved_at }} {% if item.approved_by %}· {{ item.approved_by }}{% endif %}</div>
+    {% endif %}
+  </div>
+
+  {% if pii_issues %}
+  <div class="alert alert-warning text-sm mb-4">{% translate "Possible personal data" %}: {{ pii_issues|join:", " }}</div>
+  {% endif %}
+
+  {% if request.user|is_admin_of:request.team %}
+  <div class="flex flex-wrap gap-2 mb-6">
+    {% if item.status != "RETIRED" %}
+    <a class="btn btn-sm" href="{% url 'knowledge:curated_edit' request.team.slug item.id %}">{% translate "Edit" %}</a>
+    {% endif %}
+    <form method="post" action="{% url 'knowledge:curated_deidentify' request.team.slug item.id %}">{% csrf_token %}<button class="btn btn-sm" type="submit">{% translate "De-identify" %}</button></form>
+    {% if item.status != "RETIRED" %}
+    <form method="post" action="{% url 'knowledge:curated_approve' request.team.slug item.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary" type="submit">{% translate "Approve" %}</button></form>
+    <form method="post" action="{% url 'knowledge:curated_retire' request.team.slug item.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline" type="submit">{% translate "Retire" %}</button></form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <a class="link text-sm" href="{% url 'knowledge:curated_list' request.team.slug %}">{% translate "Back to list" %}</a>
+</div>
+{% endblock %}

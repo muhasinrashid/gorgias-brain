@@ -1,0 +1,9 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4">
+  <h1 class="text-3xl font-semibold mb-2">{% translate "Activity" %}</h1>
+  <p class="opacity-70 mb-6">{% translate "One row per draft task will appear here after M4." %}</p>
+  <div class="alert">{% translate "No activity yet. Connect Gorgias and wait for the first qualified ticket." %}</div>
+</div>
+{% endblock %}

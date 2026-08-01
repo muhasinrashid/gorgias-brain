@@ -1,0 +1,94 @@
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+extend-exclude = [
+    ".direnv",
+    ".git",
+    ".ruff_cache",
+    "node_modules",
+    "migrations",
+]
+line-length = 120
+indent-width = 4
+target-version = "py314"
+
+[tool.ruff.lint]
+fixable = [
+    "ALL",
+]
+unfixable = []
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.setuptools]
+py-modules = []
+
+[project]
+name = "draftline"
+version = "0.1.0"
+description = "Application to build SaaS platforms"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "Django>=6.0",
+    "boto3",
+    "beautifulsoup4",
+    "celery",
+    "celery-progress",
+    "celery[redis]",
+    "channels",
+    "channels_redis",
+    "cryptography",
+    "dj-stripe>=2.10,<2.11",
+    "django-allauth[socialaccount,mfa,headless]>=65.13.0",
+    "django-anymail[mailgun]", # email services
+    "django-celery-beat",
+    "django-cors-headers",
+    "django-environ",
+    "django-health-check",
+    "django-hijack",
+    "django-htmx",
+    "django-storages",
+    "django-vite>=3.1.0",
+    "django-waffle",
+    "djangorestframework",
+    "djangorestframework-api-key",
+    "drf-spectacular",
+    "apify-client",
+    "httpx>=0.28.1",
+    "lxml",
+    "markdown",
+    "mcp-alchemy==2025.8.15.91819",
+    "nh3>=0.2.21",
+    "openai",
+    "psycopg",
+    "pydantic-ai-slim[openai,anthropic,google,mcp]>=1.0",
+    "python-dateutil",
+    "redis",
+    "requests",
+    "sentry-sdk[django]>=2.55.0",
+    "stripe>=14,<15",
+    "tenacity",
+    "whitenoise[brotli]",
+    "pgvector>=0.5.0",
+]
+
+[dependency-groups]
+dev = [
+    "channels[daphne]",
+    "django-browser-reload",
+    "pre-commit",
+    "ruff>=0.15.6",
+    "pegasus-cli>=0.15",
+    "psycopg[binary]",
+]
+prod = [
+    "django-storages[google]",
+    "gunicorn",
+    "psycopg[c]",
+    "uvicorn[standard]",
+]

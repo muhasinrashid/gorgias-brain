@@ -1,0 +1,45 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 w-full">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div>
+      <a class="link text-sm" href="{% url 'knowledge:sources_home' request.team.slug %}">{% translate "Sources" %}</a>
+      <h1 class="text-3xl font-semibold">{{ page_title }}</h1>
+    </div>
+    <form method="get" class="flex gap-2">
+      <input class="input input-bordered input-sm w-64" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Search…' %}">
+      <button class="btn btn-sm" type="submit">{% translate "Search" %}</button>
+    </form>
+  </div>
+
+  {% if sources %}
+  <div class="overflow-x-auto">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>{% translate "Title" %}</th>
+          <th>{% translate "Usage" %}</th>
+          <th>{% translate "Language" %}</th>
+          <th>{% translate "Synced" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sources %}
+        <tr>
+          <td>
+            <a class="link" href="{% url 'knowledge:source_detail' request.team.slug s.id %}">{{ s.title|truncatechars:80 }}</a>
+          </td>
+          <td>{{ s.usage_count }}</td>
+          <td>{{ s.language|default:"—" }}</td>
+          <td class="text-xs opacity-70">{{ s.synced_at|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="opacity-70">{% translate "No sources yet. Sync macros / Help Center from the Gorgias connection page." %}</p>
+  {% endif %}
+</div>
+{% endblock %}

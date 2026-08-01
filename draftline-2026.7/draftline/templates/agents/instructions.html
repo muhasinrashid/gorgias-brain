@@ -1,0 +1,13 @@
+{% extends "web/app/app_base.html" %}
+{% load i18n %}
+{% block app %}
+<div class="px-4 max-w-3xl">
+  <h1 class="text-3xl font-semibold mb-2">{% translate "Instructions" %}</h1>
+  <p class="opacity-70 mb-4">{% translate "Versioned instructions with full history arrive in M4. For now, edit the current text." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <textarea name="instructions" class="textarea textarea-bordered w-full min-h-64" placeholder="{% translate 'House voice, escalation rules, what never to promise…' %}">{{ agent.current_instructions }}</textarea>
+    <button class="btn btn-primary mt-4" type="submit">{% translate "Save" %}</button>
+  </form>
+</div>
+{% endblock %}

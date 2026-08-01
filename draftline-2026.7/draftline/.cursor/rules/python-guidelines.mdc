@@ -1,0 +1,54 @@
+---
+description: Guidelines for working with Python code
+globs: *.py
+alwaysApply: false
+---
+## Python Code Guidelines
+
+### Code Style
+
+- Follow PEP 8 with 120 character line limit.
+- Use double quotes for Python strings (ruff enforced).
+- Sort imports with isort (via ruff).
+- Try to use type hints in new code. However, strict type-checking is not enforced and you can leave them out if it's burdensome.
+  There is no need to add type hints to existing code if it does not already use them.
+
+### Python 3.14 syntax notes
+
+- **Unparenthesized `except` with multiple exception types is valid** (PEP 758, Python 3.14+).
+  `except ValueError, TypeError:` is equivalent to `except (ValueError, TypeError):` — it is **not**
+  Python 2 syntax and will **not** raise a `SyntaxError`. Parentheses are still required when using
+  `as` (e.g. `except (ValueError, TypeError) as e:`). Do not "fix" unparenthesized forms unless an
+  `as` clause is being added.
+
+### Preferred Practices
+
+- Use Django signals sparingly and document them well.
+- Always use the Django ORM if possible. Use best practices like lazily evaluating querysets
+  and selecting or prefetching related objects when necessary.
+- Use function-based views by default, unless using a framework that relies on class-based views (e.g. Django Rest Framework).
+- Always validate user input server-side.
+- Handle errors explicitly, avoid silent failures.
+- When calling the Stripe API directly (not through dj-stripe), always use `get_stripe_module()` from `apps.utils.billing`
+  instead of `import stripe`. This ensures `stripe.api_key` is properly set.
+- Use translation markup, usually `gettext_lazy` whenever using user-facing strings.
+
+#### Django models
+
+- All Django models should extend `apps.utils.models.BaseModel` (which adds `created_at` and `updated_at` fields) or `apps.teams.models.BaseTeamModel` (which also adds a `team`) if owned by a team.
+- Models that extend `BaseTeamModel` should use the `for_team` model manager for queries that require team filtering. This will apply the team filter automatically based on the global team context. See `apps.teams.context.get_current_team`.
+- The project's user model is `apps.users.models.CustomUser` and should be imported directly.
+- The `Team` model is like a virtual tenant and most data access / functionality happens within
+  the context of a `Team`.
+
+#### Django URLs, Views and Teams
+
+- Many apps have a `urls.py` with a `urlpatterns` and a `team_urlpatterns` value.
+  The `urlpatterns` are for views that happen outside the context of a `Team` model.
+  `team_urlpatterns` are for views that happen within the context of a `Team`.
+- Anything in `team_urlpatterns` will have URLs of the format `/a/<team_slug>/<app_path>/<pattern>/`.
+- Any view referenced by `team_urlpatterns` must contain `team_slug` as the first argument.
+- For team-based views, the `@login_and_team_required` and `@team_admin_required` decorators
+  can be used to ensure the user is logged in and can access the associated team.
+- If not specified, assume that a given url/view belongs within the context of a team
+  (and follows the above guidance)
